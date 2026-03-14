@@ -27,16 +27,10 @@ export async function submitTransaction(payload: any): Promise<any> {
 }
 
 export async function submitSessionTelemetry(payload: any): Promise<any> {
-  try {
-    const res = await fetch(`${API_BASE}/api/transactions/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    return res.json();
-  } catch {
-    return null;
-  }
+  // Session telemetry is logged locally for now — no backend endpoint needed.
+  // The actual fraud analysis happens via demo scenarios or send money.
+  console.log("[telemetry] session ended", payload.session_id);
+  return null;
 }
 
 export async function triggerDemoScenario(

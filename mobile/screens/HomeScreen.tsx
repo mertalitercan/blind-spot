@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -20,12 +20,20 @@ interface Props {
   onLogout: () => void;
 }
 
-const INACTIVITY_TIMEOUT_MS = 60000; // 1 minute
+const SAFE_SCENARIOS = ["safe_mertali", "safe_ediz", "safe_deniz", "normal"];
+const SUSPICIOUS_SCENARIOS = ["suspicious_mertali", "suspicious_ediz", "suspicious_deniz", "app_fraud", "account_takeover", "mule_network"];
 
-const OTHER_NAMES: Record<string, string[]> = {
-  "mertali-tercan": ["Ediz Uysal", "Deniz Coban"],
-  "ediz-uysal": ["Mertali Tercan", "Deniz Coban"],
-  "deniz-coban": ["Mertali Tercan", "Ediz Uysal"],
+const SCENARIO_NAMES: Record<string, string> = {
+  safe_mertali: "Mertali Tercan",
+  safe_ediz: "Ediz Uysal",
+  safe_deniz: "Deniz Coban",
+  normal: "Mertali Tercan",
+  suspicious_mertali: "Mertali Tercan",
+  suspicious_ediz: "Ediz Uysal",
+  suspicious_deniz: "Deniz Coban",
+  app_fraud: "Ediz Uysal",
+  account_takeover: "Deniz Coban",
+  mule_network: "Mertali Tercan",
 };
 
 export default function HomeScreen({ user, tracker, onLogout }: Props) {
@@ -35,9 +43,10 @@ export default function HomeScreen({ user, tracker, onLogout }: Props) {
   const [showSendMoney, setShowSendMoney] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [demoLoading, setDemoLoading] = useState<string | null>(null);
+  const [safeIndex, setSafeIndex] = useState(0);
+  const [suspiciousIndex, setSuspiciousIndex] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
   const toastOpacity = useRef(new Animated.Value(0)).current;
-  const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Toast notification
   const showToast = useCallback(
@@ -60,47 +69,42 @@ export default function HomeScreen({ user, tracker, onLogout }: Props) {
     [toastOpacity]
   );
 
-  // Inactivity auto-logout
-  const resetInactivityTimer = useCallback(() => {
-    if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
-    inactivityTimer.current = setTimeout(() => {
-      Alert.alert(
-        "Session Expired",
-        "You have been logged out due to inactivity."
-      );
-      onLogout();
-    }, INACTIVITY_TIMEOUT_MS);
-  }, [onLogout]);
-
-  useEffect(() => {
-    resetInactivityTimer();
-    return () => {
-      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
-    };
-  }, [resetInactivityTimer]);
-
   const handleInteraction = () => {
-    resetInactivityTimer();
     tracker?.recordTouch(200, 400, "press");
   };
 
-  const handleDemoScenario = async (scenario: string) => {
+  const handleDemoScenario = async (type: "safe" | "suspicious") => {
     handleInteraction();
-    setDemoLoading(scenario);
 
-    // Show immediate toast with fake incoming transfer
-    const others = OTHER_NAMES[user.userId] || ["Someone"];
-    const sender = others[Math.floor(Math.random() * others.length)];
-    const incomingAmount = parseFloat((Math.random() * 400 + 50).toFixed(2));
-    setBalance((b) => b + incomingAmount);
-    showToast(`Money received $${incomingAmount.toFixed(2)} from ${sender}`);
+    // Pick scenario from cycle
+    let scenario: string;
+    if (type === "safe") {
+      scenario = SAFE_SCENARIOS[safeIndex % SAFE_SCENARIOS.length];
+      setSafeIndex((i) => i + 1);
+    } else {
+      scenario = SUSPICIOUS_SCENARIOS[suspiciousIndex % SUSPICIOUS_SCENARIOS.length];
+      setSuspiciousIndex((i) => i + 1);
+    }
+
+    setDemoLoading(type);
+
+    // Show immediate toast
+    const scenarioUser = SCENARIO_NAMES[scenario] || "Someone";
+    const amount = parseFloat((Math.random() * 400 + 50).toFixed(2));
+    if (type === "safe") {
+      setBalance((b) => b + amount);
+      showToast(`Money received $${amount.toFixed(2)} from ${scenarioUser}`);
+    } else {
+      setBalance((b) => b + amount);
+      showToast(`Incoming $${amount.toFixed(2)} from ${scenarioUser} — analyzing...`);
+    }
 
     try {
       const result = await triggerDemoScenario(scenario);
       const score =
         result?.cumulative_fraud_score ?? result?.fraud_score ?? "N/A";
       const risk = result?.risk_level ?? "unknown";
-      Alert.alert("Pipeline Complete", `Fraud Score: ${score}/100\nRisk: ${risk}`, [
+      Alert.alert("Pipeline Complete", `${scenarioUser}\nFraud Score: ${score}/100\nRisk: ${risk}`, [
         { text: "OK" },
       ]);
     } catch {
@@ -131,20 +135,20 @@ export default function HomeScreen({ user, tracker, onLogout }: Props) {
         <Text style={styles.demoLabel}>Generate :</Text>
         <TouchableOpacity
           style={styles.demoButton}
-          onPress={() => handleDemoScenario("normal")}
+          onPress={() => handleDemoScenario("safe")}
           disabled={!!demoLoading}
         >
           <Text style={styles.demoButtonText}>
-            {demoLoading === "normal" ? "..." : "Safe Intake"}
+            {demoLoading === "safe" ? "..." : "Safe Intake"}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.demoButton, styles.demoButtonDanger]}
-          onPress={() => handleDemoScenario("app_fraud")}
+          onPress={() => handleDemoScenario("suspicious")}
           disabled={!!demoLoading}
         >
           <Text style={styles.demoButtonText}>
-            {demoLoading === "app_fraud" ? "..." : "Suspicious Intake"}
+            {demoLoading === "suspicious" ? "..." : "Suspicious Intake"}
           </Text>
         </TouchableOpacity>
       </View>

@@ -4,7 +4,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import demo, transactions
+from routers import demo, transactions, dashboard, websocket_router
 from database import init_db, seed_historical_sessions
 
 logging.basicConfig(level=logging.INFO)
@@ -25,6 +25,8 @@ app.add_middleware(
 
 app.include_router(demo.router)
 app.include_router(transactions.router)
+app.include_router(dashboard.router)
+app.include_router(websocket_router.router)
 
 
 @app.on_event("startup")

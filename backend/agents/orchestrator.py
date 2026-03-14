@@ -318,19 +318,25 @@ def _build_meta_input(
     }, indent=2)
 
 
-async def _call_agent_safe(agent, input_msg: str, agent_name: str) -> dict:
-    """Call an agent with error handling, returning a default on failure."""
-    try:
-        result = await rt.call(agent, input_msg)
-        text = result.text if hasattr(result, "text") else str(result)
-        parsed = parse_agent_json(text)
-        if parsed:
-            return parsed
-        logger.warning(f"{agent_name} returned unparseable response: {text[:200]}")
-        return {"risk_score": 0, "confidence": 0.0, "flags": [], "reasoning": f"{agent_name} failed to produce valid output."}
-    except Exception as e:
-        logger.error(f"{agent_name} failed: {e}")
-        return {"risk_score": 0, "confidence": 0.0, "flags": [], "reasoning": f"{agent_name} encountered an error: {str(e)}"}
+async def _call_agent_safe(agent, input_msg: str, agent_name: str, retries: int = 2) -> dict:
+    """Call an agent with error handling and rate limit retry."""
+    for attempt in range(retries + 1):
+        try:
+            result = await rt.call(agent, input_msg)
+            text = result.text if hasattr(result, "text") else str(result)
+            parsed = parse_agent_json(text)
+            if parsed and any(k in parsed for k in ("risk_score", "cognitive_risk_score", "cumulative_fraud_score")):
+                return parsed
+            logger.warning(f"{agent_name} returned unparseable response: {text[:300]}")
+            return {"risk_score": 0, "confidence": 0.0, "flags": [], "reasoning": f"{agent_name} failed to produce valid output."}
+        except Exception as e:
+            error_str = str(e)
+            if "rate_limit" in error_str.lower() and attempt < retries:
+                logger.warning(f"{agent_name} hit rate limit, retrying in {3 * (attempt + 1)}s...")
+                await asyncio.sleep(3 * (attempt + 1))
+                continue
+            logger.error(f"{agent_name} failed: {e}")
+            return {"risk_score": 0, "confidence": 0.0, "flags": [], "reasoning": f"{agent_name} encountered an error: {str(e)}"}
 
 
 async def analyze_transaction(transaction_data: dict) -> FraudAssessmentResponse:
@@ -351,7 +357,7 @@ async def analyze_transaction(transaction_data: dict) -> FraudAssessmentResponse
     recipient_profile = get_recipient_business_profile(transaction_data.get("recipient_account_id", ""))
 
     # Get historical data from database
-    historical_sessions = get_user_sessions(user_id, limit=15)
+    historical_sessions = get_user_sessions(user_id, limit=5)
     ip_history = get_user_ip_history(user_id)
 
     # Compute geolocation distance
@@ -369,11 +375,14 @@ async def analyze_transaction(transaction_data: dict) -> FraudAssessmentResponse
     device_input = _build_device_input(transaction_data, baseline, ip_history, geo_distance_km)
     graph_input = _build_graph_input(transaction_data, recipient_graph)
 
-    # Run agents 1-5 in parallel
-    behavioral_result, cognitive_result, transaction_result, device_result, graph_result = await asyncio.gather(
+    # Run agents in two staggered batches to avoid rate limits
+    behavioral_result, cognitive_result, transaction_result = await asyncio.gather(
         _call_agent_safe(behavioral_agent, behavioral_input, "Behavioral"),
         _call_agent_safe(cognitive_agent, cognitive_input, "Cognitive"),
         _call_agent_safe(transaction_agent, transaction_input, "Transaction"),
+    )
+    await asyncio.sleep(2)  # brief pause to respect rate limits
+    device_result, graph_result = await asyncio.gather(
         _call_agent_safe(device_agent, device_input, "Device"),
         _call_agent_safe(graph_agent, graph_input, "Graph"),
     )

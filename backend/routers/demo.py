@@ -4,9 +4,12 @@ import uuid
 from fastapi import APIRouter
 
 from agents.orchestrator import analyze_transaction
-from seed.seed_scenarios import get_scenario
+from seed.seed_scenarios import get_scenario, USER_BASELINES
+import store
 
 router = APIRouter(prefix="/api/demo", tags=["demo"])
+
+USER_NAMES = {uid: b["name"] for uid, b in USER_BASELINES.items()}
 
 
 @router.post("/scenario/{scenario_name}")
@@ -20,11 +23,22 @@ async def run_demo_scenario(scenario_name: str):
     transaction_data["transaction_id"] = str(uuid.uuid4())
 
     result = await analyze_transaction(transaction_data)
+    result_dict = result.model_dump()
+
+    # Save to store and broadcast to dashboard
+    user_id = transaction_data.get("user_id", "unknown")
+    user_name = USER_NAMES.get(user_id, user_id)
+    direction = scenario.get("transaction_direction", "outgoing")
+    entry = store.save_assessment(user_id, user_name, result_dict, transaction_direction=direction)
+    await store.broadcast({
+        "type": "new_assessment",
+        "data": entry,
+    })
 
     return {
         "scenario": scenario_name,
         "description": scenario["description"],
-        "assessment": result.model_dump(),
+        "assessment": result_dict,
     }
 
 

@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { TelemetryTracker } from "../lib/telemetry";
+import { submitTransaction } from "../lib/api";
 
 interface Props {
   visible: boolean;
@@ -39,6 +40,7 @@ export default function SendMoneyModal({
 }: Props) {
   const [recipientName, setRecipientName] = useState("");
   const [amount, setAmount] = useState("");
+  const [sending, setSending] = useState(false);
   const prevTexts = useRef<Record<string, string>>({
     recipientName: "",
     amount: "",
@@ -73,7 +75,105 @@ export default function SendMoneyModal({
     }
 
     tracker?.recordConfirmPress();
+    setSending(true);
+
+    // Immediately update UI
     onSent(parsedAmount, recipientName.trim());
+
+    // Build transaction payload from real telemetry
+    const snapshot = tracker?.getSnapshot();
+    const recipientId = resolveRecipientId(recipientName);
+
+    const payload = {
+      user_id: userId,
+      amount: parsedAmount,
+      currency: "CAD",
+      recipient_account_id: recipientId,
+      recipient_name: recipientName.trim(),
+      recipient_institution: "Interac",
+      transaction_type: "e_transfer",
+      ip_address: "24.114.52.100",
+      ip_geolocation: { lat: 43.65, lng: -79.38, city: "Toronto", country: "CA" },
+      device_fingerprint: {
+        device_id: `mobile-${userId}`,
+        os: Platform.OS === "ios" ? "iOS 18.1" : "Android 15",
+        os_version: Platform.OS === "ios" ? "18.1" : "15",
+        app_version: "5.3.0",
+        screen_resolution: "1206x2622",
+        timezone: "America/Toronto",
+        language: "en-CA",
+        is_emulator: false,
+        is_rooted_jailbroken: false,
+        is_vpn_active: false,
+        is_proxy_detected: false,
+        is_remote_desktop_active: false,
+        is_screen_sharing: false,
+        battery_level: 0.72,
+        is_charging: false,
+      },
+      session_context: {
+        is_phone_call_active: false,
+        phone_call_duration_ms: 0,
+        clipboard_used: snapshot?.paste_detected || false,
+        clipboard_content_type: snapshot?.paste_detected ? "account_number" : "unknown",
+        notification_count_during_session: 0,
+        screen_brightness: 0.6,
+      },
+      auth_method: "biometric",
+      timestamp: new Date().toISOString(),
+      behavioral_telemetry: {
+        keystroke_events: (snapshot?.keystroke_events || []).slice(0, 10).map((e) => ({
+          key: "*",
+          timestamp_ms: e.timestamp_ms,
+          dwell_time_ms: 50,
+          flight_time_ms: e.timestamp_ms > 0 ? 80 : 0,
+        })),
+        typing_speed_wpm: snapshot?.typing_speed_wpm || 0,
+        error_rate: snapshot?.error_rate || 0,
+        typing_rhythm_signature: snapshot?.typing_rhythm_signature || [],
+        segmented_typing_detected: snapshot?.segmented_typing_detected || false,
+        paste_detected: snapshot?.paste_detected || false,
+        paste_field: snapshot?.paste_field || "",
+        touch_events: [],
+        avg_touch_pressure: snapshot?.avg_touch_pressure || 0.45,
+        avg_touch_radius: snapshot?.avg_touch_radius || 12.0,
+        swipe_velocity_avg: 450.0,
+        tap_duration_avg_ms: 70.0,
+        hand_dominance: snapshot?.hand_dominance || "right",
+        navigation_path: (snapshot?.navigation_path || []).map((n) => ({
+          screen_name: n.screen_name,
+          timestamp_ms: n.timestamp_ms,
+          duration_ms: n.duration_ms,
+        })),
+        navigation_directness_score: snapshot?.navigation_directness_score || 0.5,
+        time_per_screen_ms: Object.fromEntries(
+          (snapshot?.navigation_path || []).map((n) => [n.screen_name, n.duration_ms])
+        ),
+        screen_familiarity_score: snapshot?.screen_familiarity_score || 0.5,
+        app_switches: snapshot?.app_switches || [],
+        dead_time_periods: snapshot?.dead_time_periods || [],
+        total_dead_time_ms: snapshot?.total_dead_time_ms || 0,
+        confirm_button_hesitation_ms: snapshot?.confirm_button_hesitation_ms || 0,
+        confirm_attempts: snapshot?.confirm_attempts || 1,
+      },
+    };
+
+    try {
+      const result = await submitTransaction(payload);
+      const assessment = result?.assessment || {};
+      const score = assessment?.meta?.cumulative_fraud_score ?? "N/A";
+      const risk = assessment?.meta?.risk_level ?? "unknown";
+      Alert.alert(
+        "Transfer Analyzed",
+        `Sent $${parsedAmount.toFixed(2)} to ${recipientName.trim()}\nFraud Score: ${score}/100\nRisk: ${risk}`,
+        [{ text: "OK" }]
+      );
+    } catch {
+      // Transfer still went through visually
+      Alert.alert("Note", "Transfer sent. Backend analysis unavailable.");
+    }
+
+    setSending(false);
     resetForm();
     onClose();
   };
@@ -130,14 +230,17 @@ export default function SendMoneyModal({
           />
 
           <TouchableOpacity
-            style={styles.sendButton}
+            style={[styles.sendButton, sending && styles.sendButtonDisabled]}
             onPress={() => {
               tracker?.recordConfirmApproach();
               handleSend();
             }}
             activeOpacity={0.8}
+            disabled={sending}
           >
-            <Text style={styles.sendButtonText}>Send e-Transfer</Text>
+            <Text style={styles.sendButtonText}>
+              {sending ? "Sending..." : "Send e-Transfer"}
+            </Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -192,6 +295,9 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: "center",
     marginTop: 12,
+  },
+  sendButtonDisabled: {
+    opacity: 0.5,
   },
   sendButtonText: {
     color: "#FFFFFF",
