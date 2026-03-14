@@ -1,8 +1,8 @@
-# CLAUDE.md - Claude Code Instructions for FraudSense
+# CLAUDE.md - Claude Code Instructions for BlindSpot
 
 ## Project context
 
-FraudSense is a hackathon project for TD Bank's "Best AI Hack to Detect Financial Fraud" challenge. It's a multi-agent fraud detection system that combines behavioral biometrics, cognitive state analysis, transaction graph intelligence, and LLM-based explainable reasoning.
+BlindSpot is a hackathon project for TD Bank's "Best AI Hack to Detect Financial Fraud" challenge. It's a multi-agent fraud detection system that combines behavioral biometrics, cognitive state analysis, transaction graph intelligence, and LLM-based explainable reasoning.
 
 Read PLAN.md for full architecture, data schemas, agent specifications, and implementation phases.
 
@@ -25,7 +25,8 @@ Read PLAN.md for full architecture, data schemas, agent specifications, and impl
 ## Tech stack
 
 - **Backend:** Python 3.11+, FastAPI, SQLAlchemy 2.0 (async), asyncpg, Pydantic v2
-- **LLM:** Anthropic Claude API (claude-sonnet-4-20250514), use `anthropic` Python SDK
+- **Agent Framework:** Railtracks (`railtracks`) — Flow, agent_node, function_node for multi-agent orchestration
+- **LLM:** Anthropic Claude API (claude-sonnet-4-20250514) via `rt.llm.AnthropicLLM` (Railtracks unified interface)
 - **Database:** PostgreSQL 16
 - **Dashboard:** Next.js 14 (App Router), TypeScript, Tailwind CSS, shadcn/ui, Recharts
 - **Mobile (later):** React Native with Expo
@@ -35,7 +36,7 @@ Read PLAN.md for full architecture, data schemas, agent specifications, and impl
 ## Project structure
 
 ```
-fraudsense/
+blindspot/
 ├── backend/
 │   ├── main.py
 │   ├── config.py
@@ -94,8 +95,8 @@ Follow this exact order. Do not skip ahead.
 
 **Step 1: Project setup**
 ```bash
-mkdir -p fraudsense/backend/{agents,models,routers,services,seed}
-cd fraudsense/backend
+mkdir -p blindspot/backend/{agents,models,routers,services,seed}
+cd blindspot/backend
 ```
 
 Create `requirements.txt`:
@@ -108,6 +109,7 @@ pydantic==2.9.0
 pydantic-settings==2.5.0
 python-dotenv==1.0.1
 anthropic==0.39.0
+railtracks
 httpx==0.27.0
 faker==30.0.0
 numpy==1.26.4
@@ -117,7 +119,7 @@ websockets==13.0
 
 Create `.env`:
 ```
-DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/fraudsense
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/blindspot
 ANTHROPIC_API_KEY=sk-ant-...
 ```
 
@@ -149,15 +151,13 @@ ANTHROPIC_API_KEY=sk-ant-...
 ### Phase 2: Agents
 
 **Step 6: agents/base.py**
-- BaseAgent class with:
-  - `__init__(self, client: anthropic.AsyncAnthropic, model: str)`
-  - `async def analyze(self, data: dict) -> dict`
-  - `async def _call_llm(self, system_prompt: str, user_message: str) -> dict`
-  - The _call_llm method should:
-    - Call Claude API with JSON mode
-    - Parse the response
-    - Handle errors gracefully (return a default low-risk score on failure)
-    - Log the raw response for debugging
+- Use Railtracks as the agent framework:
+  - Create a shared `rt.llm.AnthropicLLM("claude-sonnet-4-20250514")` LLM instance
+  - Each specialist agent is created via `rt.agent_node()` with its system prompt and tool nodes
+  - Analysis service functions are decorated with `@rt.function_node` to become agent tools
+  - The orchestrator uses `rt.Flow()` to coordinate the multi-agent pipeline
+  - Handle errors gracefully (return a default low-risk score on failure)
+  - Log the raw response for debugging
 
 **Step 7: agents/behavioral.py**
 - Inherits BaseAgent
@@ -196,12 +196,13 @@ ANTHROPIC_API_KEY=sk-ant-...
 - Output: cumulative_score, risk_level, fraud_type_assessment, recommended_actions[], meta_reasoning, agent_summary
 
 **Step 13: agents/orchestrator.py**
+- Uses Railtracks `rt.Flow` to orchestrate the full pipeline
 - `async def analyze_transaction(transaction_data, behavioral_data, user_id) -> FraudAssessment`
 - Fetches user baseline from DB
 - Fetches user transaction history from DB
 - Fetches recipient graph data from DB
-- Calls agents 1-5 in parallel with asyncio.gather
-- Calls agent 6 (meta) with results from 1-5
+- Invokes agents 1-5 in parallel via Railtracks async-native Flow execution
+- Invokes agent 6 (meta) with results from 1-5
 - Saves full assessment to DB
 - Creates alert if score > threshold (70)
 - Returns complete assessment
@@ -275,7 +276,7 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 **Step 26: Dashboard setup**
 ```bash
-cd fraudsense
+cd blindspot
 npx create-next-app@latest dashboard --typescript --tailwind --eslint --app --src-dir
 cd dashboard
 npx shadcn@latest init
@@ -391,10 +392,10 @@ You MUST respond with ONLY valid JSON matching this schema:
 
 ```bash
 # PostgreSQL
-createdb fraudsense
+createdb blindspot
 
 # Backend
-cd fraudsense/backend
+cd blindspot/backend
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -404,7 +405,7 @@ cp .env.example .env  # fill in ANTHROPIC_API_KEY
 uvicorn main:app --reload --port 8000
 
 # Dashboard
-cd fraudsense/dashboard
+cd blindspot/dashboard
 npm install
 npm run dev  # runs on :3000
 ```

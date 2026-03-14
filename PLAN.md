@@ -1,8 +1,67 @@
 # TD Fraud Detection - Hackathon Project Plan
 
-## Project name: FraudSense
+## Project name: BlindSpot
 
 AI-powered fraud detection system that combines behavioral biometrics, cognitive state analysis, transaction graph intelligence, and LLM-based explainable reasoning to catch what traditional systems miss.
+
+---
+
+## 0. Railtracks integration
+
+This project uses **Railtracks** — a Python agentic framework by Railtown AI — as the orchestration layer for our multi-agent fraud detection system. Instead of hand-rolling agent coordination, we use Railtracks' `Flow`, `agent_node`, and `function_node` primitives.
+
+### Why Railtracks
+
+- **Pure Python:** No YAML or DSLs. Agent behavior is defined with standard Python control flow.
+- **Tool-First:** Our analysis services (behavioral, transaction, graph) become `@rt.function_node` tools that agents can invoke.
+- **Async-Native:** Built-in parallelization maps perfectly to our asyncio.gather pattern for running 5 agents concurrently.
+- **Built-in Observability:** Local visualizer for inspecting agent runs — great for hackathon demos.
+
+### How Railtracks maps to our architecture
+
+| BlindSpot concept | Railtracks primitive |
+|---|---|
+| Each specialist agent (behavioral, cognitive, transaction, device, graph) | `rt.agent_node()` with `rt.llm.AnthropicLLM("claude-sonnet-4-20250514")` |
+| Meta-reasoning scorer | `rt.agent_node()` that receives all 5 agent outputs |
+| Analysis services (behavioral_analysis, transaction_analysis, graph_service, baseline_service) | `@rt.function_node` decorated functions — automatically exposed as agent tools |
+| Orchestrator pipeline | `rt.Flow()` with entry point and parallel agent execution |
+| LLM calls | `rt.llm.AnthropicLLM("claude-sonnet-4-20250514")` — unified interface |
+
+### Railtracks agent example (our pattern)
+
+```python
+import railtracks as rt
+
+# Services become tool nodes
+@rt.function_node
+def compute_typing_features(keystroke_events: str) -> str:
+    """Extract typing rhythm features from keystroke event data."""
+    # ... feature extraction logic
+    return json.dumps(features)
+
+@rt.function_node
+def compare_to_baseline(current_features: str, baseline: str) -> str:
+    """Compare current behavioral features against user baseline."""
+    # ... comparison logic
+    return json.dumps(deviations)
+
+# Each specialist agent is an agent_node
+behavioral_agent = rt.agent_node(
+    "Behavioral Biometrics Agent",
+    tool_nodes=(compute_typing_features, compare_to_baseline),
+    llm=rt.llm.AnthropicLLM("claude-sonnet-4-20250514"),
+    system_message=BEHAVIORAL_SYSTEM_PROMPT,
+)
+
+# Orchestrator flow
+fraud_detection_flow = rt.Flow(
+    name="BlindSpot Detection Pipeline",
+    entry_point=orchestrator_agent,
+)
+
+# Execute
+result = await fraud_detection_flow.invoke(transaction_data)
+```
 
 ---
 
@@ -517,7 +576,7 @@ The LLM meta-agent can override the formula with reasoning. It receives the form
 |-----------|-----------|-------|
 | Mobile mock app | React Native (Expo) | TD-style UI, behavioral telemetry capture |
 | Backend API | FastAPI (Python 3.11+) | REST + WebSocket endpoints |
-| Agent orchestration | Python + Anthropic SDK | Claude Sonnet for all agents (speed) |
+| Agent orchestration | **Railtracks** + Anthropic SDK | Railtracks Flow/agent_node for orchestration, Claude Sonnet for all agents |
 | Database | PostgreSQL 16 | With pgvector if needed for embeddings |
 | Dashboard | Next.js 14 + React + Tailwind + shadcn/ui + Recharts | Real-time fraud monitoring |
 | Real-time | WebSocket (FastAPI) | Behavioral telemetry streaming |
@@ -709,7 +768,7 @@ POST   /api/seed                       Seed the database with demo data
 ## 7. Project structure
 
 ```
-fraudsense/
+blindspot/
 ├── backend/
 │   ├── main.py                          # FastAPI app entry point
 │   ├── config.py                        # Environment config, API keys
@@ -876,8 +935,8 @@ fraudsense/
 
 ## 10. Key technical decisions
 
-1. **All agents use Claude Sonnet** for speed. We need sub-5-second total analysis time for demo.
-2. **Agents run in parallel** (asyncio.gather) except the meta-agent which runs last.
+1. **All agents use Claude Sonnet via Railtracks** (`rt.llm.AnthropicLLM`). We need sub-5-second total analysis time for demo.
+2. **Agents run in parallel** via Railtracks Flow (async-native) except the meta-agent which runs last.
 3. **Structured output** via JSON mode in Claude API. Each agent returns a strict schema.
 4. **Seed data is critical.** We need realistic behavioral baselines so the demo scenarios produce meaningful deviations. Generate 30+ days of transaction history per demo user.
 5. **The cognitive state agent is our pitch.** Make sure its reasoning is the most detailed and impressive.
