@@ -1,2 +1,0 @@
-# gaig-hackaton
-a
