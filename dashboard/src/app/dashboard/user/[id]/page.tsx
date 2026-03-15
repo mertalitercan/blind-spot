@@ -151,143 +151,200 @@ export default function UserDetailPage() {
         </div>
       </header>
 
-      <div className="p-8 grid grid-cols-1 lg:grid-cols-5 gap-8">
-        {/* Left: Scores + Analysis (3 cols) */}
-        <div className="lg:col-span-3 space-y-6">
-          {/* Score Hero */}
-          <div className="bg-[#0F0F1A] border border-[#1E1E35] rounded-2xl p-8 flex items-center gap-8">
-            <div className="relative shrink-0">
-              <svg className="w-28 h-28 -rotate-90" viewBox="0 0 36 36">
-                <circle cx="18" cy="18" r="15" fill="none" stroke="#1E1E35" strokeWidth="2.5" />
-                <circle
-                  cx="18" cy="18" r="15" fill="none"
-                  stroke={finalScore >= 71 ? "#f87171" : finalScore >= 31 ? "#fbbf24" : "#2E7D32"}
-                  strokeWidth="2.5"
-                  strokeDasharray={`${(finalScore / 100) * 94.2} 94.2`}
-                  strokeLinecap="round"
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className={`text-3xl font-bold ${scoreColor(finalScore)}`}>{finalScore}</span>
-                <span className="text-[10px] text-slate-600">/100</span>
-              </div>
-            </div>
-            <div className="flex-1">
-              <p className="text-sm text-slate-500 mb-1">Final Assessment</p>
-              <p className="text-sm text-slate-300 leading-relaxed">
-                {meta.reasoning || "No meta reasoning available."}
-              </p>
-              {meta.recommended_actions && meta.recommended_actions.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-3">
-                  {meta.recommended_actions.slice(0, 3).map((a: string, i: number) => (
-                    <span key={i} className="text-[10px] bg-[#1E1E35] text-slate-400 px-2.5 py-1 rounded-lg">
-                      {a}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+      <div className="p-8 space-y-8">
+        {/* Intervention Preview — full width at top, only for high risk */}
+        {finalScore >= 71 && (() => {
+          const fraudTypes = meta.fraud_type_assessment || {};
+          const topFraud = Object.entries(fraudTypes).sort((a, b) => (b[1] as number) - (a[1] as number))[0];
+          const fraudKey = topFraud ? topFraud[0] : "authorized_push_payment";
+          const interventions: Record<string, { title: string; message: string; icon: string }> = {
+            authorized_push_payment: {
+              title: "Transaction Paused",
+              icon: "🛡️",
+              message: "We've paused this transfer to protect you. Scammers sometimes pressure people into sending money urgently. Take a moment — is this someone you know and trust?",
+            },
+            account_takeover: {
+              title: "Account Secured",
+              icon: "🔒",
+              message: "We've detected unusual login activity and temporarily locked your account. If this wasn't you, your money is safe. Please verify your identity to continue.",
+            },
+            money_mule: {
+              title: "Transfer Under Review",
+              icon: "⏸️",
+              message: "This transfer is being reviewed. If someone asked you to receive and forward money, this may be a scam that could make you liable. Contact us before proceeding.",
+            },
+          };
+          const intervention = interventions[fraudKey] || interventions.authorized_push_payment;
 
-          {/* Agent Cards */}
-          <div className="space-y-2">
-            {AGENTS.map((agent) => {
-              const agentData: AgentData = assessment[agent.key] || {};
-              const score = (agentData as any)[agent.scoreKey] || 0;
-              const isExpanded = expandedAgent === agent.key;
-
-              return (
-                <div
-                  key={agent.key}
-                  className="bg-[#0F0F1A] border border-[#1E1E35] rounded-2xl overflow-hidden"
-                >
-                  <button
-                    onClick={() => setExpandedAgent(isExpanded ? null : agent.key)}
-                    className="w-full p-4 flex items-center gap-4 hover:bg-[#141425] transition"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-[#1E1E35] flex items-center justify-center shrink-0">
-                      <span className={`text-sm font-bold ${scoreColor(score)}`}>{score}</span>
-                    </div>
-                    <div className="flex-1 text-left">
-                      <p className="text-sm font-medium">{agent.label}</p>
-                      <div className="w-full h-1.5 bg-[#1E1E35] rounded-full mt-1.5 overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${barColor(score)} transition-all duration-500`}
-                          style={{ width: `${score}%` }}
-                        />
+          return (
+            <div className="bg-[#0F0F1A] border border-[#1E1E35] rounded-2xl p-5">
+              <p className="text-sm font-medium mb-4 text-slate-400">Intervention Preview</p>
+              <div className="flex justify-center">
+                <div className="w-[260px] bg-[#1A1A2E] rounded-[28px] border border-[#2A2A45] p-3 shadow-xl">
+                  {/* Phone notch */}
+                  <div className="flex justify-center mb-3">
+                    <div className="w-20 h-1 bg-[#2A2A45] rounded-full" />
+                  </div>
+                  {/* Notification card */}
+                  <div className="bg-[#0F0F1A] rounded-2xl border border-red-500/30 p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-lg">{intervention.icon}</span>
+                      <div>
+                        <p className="text-xs font-semibold text-red-300">{intervention.title}</p>
+                        <p className="text-[9px] text-slate-600">TD Bank Security</p>
                       </div>
                     </div>
-                    <span className="text-xs text-slate-600">
-                      {((agentData.confidence || 0) * 100).toFixed(0)}% conf
-                    </span>
-                    <svg
-                      className={`w-4 h-4 text-slate-600 transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                      fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-
-                  {isExpanded && (
-                    <div className="px-5 pb-5 border-t border-[#1E1E35]">
-                      {agentData.reasoning && (
-                        <p className="text-sm text-slate-400 mt-4 leading-relaxed">
-                          {agentData.reasoning}
-                        </p>
-                      )}
-                      {agentData.flags && agentData.flags.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mt-3">
-                          {agentData.flags.map((f, i) => (
-                            <span
-                              key={i}
-                              className="text-[10px] bg-red-500/10 text-red-300 border border-red-500/20 px-2 py-0.5 rounded-md"
-                            >
-                              {f}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      {agentData.detected_state && (
-                        <p className="text-xs text-slate-500 mt-3">
-                          State: <span className="text-slate-300">{agentData.detected_state}</span>
-                        </p>
-                      )}
+                    <p className="text-[11px] text-slate-300 leading-relaxed mb-4">
+                      {intervention.message}
+                    </p>
+                    <div className="space-y-2">
+                      <button className="w-full bg-red-500/20 border border-red-500/30 text-red-300 text-[11px] font-medium py-2 rounded-xl">
+                        Cancel Transfer
+                      </button>
+                      <button className="w-full bg-[#1E1E35] text-slate-400 text-[11px] font-medium py-2 rounded-xl">
+                        I know this person — proceed
+                      </button>
                     </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Fraud Type */}
-          {meta.fraud_type_assessment && (
-            <div className="bg-[#0F0F1A] border border-[#1E1E35] rounded-2xl p-5">
-              <p className="text-sm font-medium mb-4 text-slate-400">Fraud Type Probability</p>
-              <div className="space-y-3">
-                {Object.entries(meta.fraud_type_assessment).map(([type, prob]) => (
-                  <div key={type} className="flex items-center gap-4">
-                    <span className="text-xs text-slate-500 w-44 capitalize">
-                      {type.replace(/_/g, " ")}
-                    </span>
-                    <div className="flex-1 h-1.5 bg-[#1E1E35] rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-white"
-                        style={{ width: `${(prob as number) * 100}%` }}
-                      />
-                    </div>
-                    <span className="text-xs font-mono text-slate-400 w-10 text-right">
-                      {((prob as number) * 100).toFixed(0)}%
-                    </span>
                   </div>
-                ))}
+                  {/* Phone home bar */}
+                  <div className="flex justify-center mt-3">
+                    <div className="w-24 h-1 bg-[#2A2A45] rounded-full" />
+                  </div>
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-600 text-center mt-4">
+                This is what the user would see on their device when the transaction is paused.
+              </p>
+            </div>
+          );
+        })()}
+
+        {/* Main content: Info (left) + Chat (right) */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+          {/* Left: Scores + Analysis (3 cols) */}
+          <div className="lg:col-span-3 space-y-6">
+            {/* Score Hero */}
+            <div className="bg-[#0F0F1A] border border-[#1E1E35] rounded-2xl p-8 flex items-center gap-8">
+              <div className="relative shrink-0">
+                <svg className="w-28 h-28 -rotate-90" viewBox="0 0 36 36">
+                  <circle cx="18" cy="18" r="15" fill="none" stroke="#1E1E35" strokeWidth="2.5" />
+                  <circle
+                    cx="18" cy="18" r="15" fill="none"
+                    stroke={finalScore >= 71 ? "#f87171" : finalScore >= 31 ? "#fbbf24" : "#2E7D32"}
+                    strokeWidth="2.5"
+                    strokeDasharray={`${(finalScore / 100) * 94.2} 94.2`}
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className={`text-3xl font-bold ${scoreColor(finalScore)}`}>{finalScore}</span>
+                  <span className="text-[10px] text-slate-600">/100</span>
+                </div>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm text-slate-500 mb-1">Final Assessment</p>
+                <p className="text-sm text-slate-300 leading-relaxed">
+                  {meta.reasoning || "No meta reasoning available."}
+                </p>
+                {meta.recommended_actions && meta.recommended_actions.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {meta.recommended_actions.slice(0, 3).map((a: string, i: number) => (
+                      <span key={i} className="text-[10px] bg-[#1E1E35] text-slate-400 px-2.5 py-1 rounded-lg">
+                        {a}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
-          )}
-        </div>
 
-        {/* Right: AI Chat (2 cols) */}
-        <div className="lg:col-span-2">
-          <div className="bg-[#0F0F1A] border border-[#1E1E35] rounded-2xl flex flex-col h-[calc(100vh-130px)] sticky top-8">
+            {/* Agent Cards */}
+            <div className="space-y-2">
+              {AGENTS.map((agent) => {
+                const agentData: AgentData = assessment[agent.key] || {};
+                const score = (agentData as any)[agent.scoreKey] || 0;
+                const isExpanded = expandedAgent === agent.key;
+
+                return (
+                  <div
+                    key={agent.key}
+                    className="bg-[#0F0F1A] border border-[#1E1E35] rounded-2xl overflow-hidden"
+                  >
+                    <button
+                      onClick={() => setExpandedAgent(isExpanded ? null : agent.key)}
+                      className="w-full p-4 flex items-center gap-4 hover:bg-[#141425] transition"
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-[#1E1E35] flex items-center justify-center shrink-0">
+                        <span className={`text-sm font-bold ${scoreColor(score)}`}>{score}</span>
+                      </div>
+                      <div className="flex-1 text-left">
+                        <p className="text-sm font-medium">{agent.label}</p>
+                        <div className="w-full h-1.5 bg-[#1E1E35] rounded-full mt-1.5 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${barColor(score)} transition-all duration-500`}
+                            style={{ width: `${score}%` }}
+                          />
+                        </div>
+                      </div>
+                      <span className="text-xs text-slate-600">
+                        {((agentData.confidence || 0) * 100).toFixed(0)}% conf
+                      </span>
+                      <svg
+                        className={`w-4 h-4 text-slate-600 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                        fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+
+                    {isExpanded && (
+                      <div className="px-5 pb-5 border-t border-[#1E1E35]">
+                        {agentData.reasoning && (
+                          <p className="text-sm text-slate-400 mt-4 leading-relaxed">
+                            {agentData.reasoning}
+                          </p>
+                        )}
+                        {agentData.detected_state && (
+                          <p className="text-xs text-slate-500 mt-3">
+                            State: <span className="text-slate-300">{agentData.detected_state}</span>
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Fraud Type */}
+            {meta.fraud_type_assessment && (
+              <div className="bg-[#0F0F1A] border border-[#1E1E35] rounded-2xl p-5">
+                <p className="text-sm font-medium mb-4 text-slate-400">Fraud Type Probability</p>
+                <div className="space-y-3">
+                  {Object.entries(meta.fraud_type_assessment).map(([type, prob]) => (
+                    <div key={type} className="flex items-center gap-4">
+                      <span className="text-xs text-slate-500 w-44 capitalize">
+                        {type.replace(/_/g, " ")}
+                      </span>
+                      <div className="flex-1 h-1.5 bg-[#1E1E35] rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-white"
+                          style={{ width: `${(prob as number) * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-xs font-mono text-slate-400 w-10 text-right">
+                        {((prob as number) * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Right: AI Chat (2 cols) */}
+          <div className="lg:col-span-2">
+          <div className="bg-[#0F0F1A] border border-[#1E1E35] rounded-2xl flex flex-col h-[600px] lg:h-[calc(100vh-130px)] sticky top-8">
             <div className="p-5 border-b border-[#1E1E35]">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-[#2E7D32] animate-pulse" />
@@ -377,6 +434,7 @@ export default function UserDetailPage() {
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

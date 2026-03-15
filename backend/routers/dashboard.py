@@ -45,6 +45,27 @@ async def get_user_detail(user_id: str):
     return store.get_user_assessments(user_id)
 
 
+@router.get("/users/{user_id}/status")
+async def get_user_status(user_id: str):
+    """Check if a user's account is paused due to high-risk activity."""
+    return store.get_user_status(user_id)
+
+
+@router.delete("/assessments/{assessment_id}")
+async def dismiss_assessment(assessment_id: str):
+    """Dismiss/remove an assessment from the dashboard."""
+    ok = store.dismiss_assessment(assessment_id)
+    return {"success": ok}
+
+
+@router.post("/users/{user_id}/toggle-pause")
+async def toggle_user_pause(user_id: str):
+    """Toggle account pause state for a user."""
+    result = store.toggle_pause(user_id)
+    await store.broadcast({"type": "pause_toggled", "data": result})
+    return result
+
+
 @router.get("/alerts")
 async def list_alerts(unread_only: bool = False):
     """List alerts/notifications."""

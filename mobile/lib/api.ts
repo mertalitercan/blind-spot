@@ -43,6 +43,17 @@ export async function triggerDemoScenario(
   return res.json();
 }
 
+export async function getUserStatus(
+  userId: string
+): Promise<{ paused: boolean; reason: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/api/dashboard/users/${userId}/status`);
+    return res.json();
+  } catch {
+    return { paused: false, reason: "" };
+  }
+}
+
 export async function generateScenario(
   userId: string,
   type: "safe" | "suspicious"
@@ -50,6 +61,21 @@ export async function generateScenario(
   const res = await fetch(
     `${API_BASE}/api/demo/generate/${userId}/${type}`,
     { method: "POST" }
+  );
+  return res.json();
+}
+
+export async function generateCustomScenario(
+  userId: string,
+  prompt: string
+): Promise<any> {
+  const res = await fetch(
+    `${API_BASE}/api/demo/generate-custom/${userId}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt }),
+    }
   );
   return res.json();
 }

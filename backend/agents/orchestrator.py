@@ -392,11 +392,26 @@ async def _call_agent_safe(agent, input_msg: str, agent_name: str, retries: int 
             return {"risk_score": 0, "confidence": 0.0, "flags": [], "reasoning": f"{agent_name} encountered an error."}
 
 
-async def analyze_transaction(transaction_data: dict) -> FraudAssessmentResponse:
+async def _call_agent_with_progress(agent, input_msg: str, agent_name: str, progress_callback=None, retries: int = 2) -> dict:
+    """Call an agent, then notify progress callback on completion."""
+    result = await _call_agent_safe(agent, input_msg, agent_name, retries)
+    if progress_callback:
+        score_key = "cognitive_risk_score" if agent_name == "Cognitive" else "cumulative_fraud_score" if agent_name == "MetaScorer" else "risk_score"
+        await progress_callback(
+            agent_name=agent_name.lower(),
+            score=result.get(score_key, result.get("risk_score", 0)),
+            confidence=result.get("confidence", 0.0),
+        )
+    return result
+
+
+async def analyze_transaction(transaction_data: dict, progress_callback=None) -> FraudAssessmentResponse:
     """Run the full fraud detection pipeline on a transaction.
 
     Args:
         transaction_data: Full transaction data including behavioral telemetry.
+        progress_callback: Optional async function called after each agent completes.
+            Signature: async (agent_name: str, score: int, confidence: float) -> None
 
     Returns:
         FraudAssessmentResponse with all agent scores and meta assessment.
@@ -430,14 +445,14 @@ async def analyze_transaction(transaction_data: dict) -> FraudAssessmentResponse
 
     # Run agents in two staggered batches to avoid rate limits
     behavioral_result, cognitive_result, transaction_result = await asyncio.gather(
-        _call_agent_safe(behavioral_agent, behavioral_input, "Behavioral"),
-        _call_agent_safe(cognitive_agent, cognitive_input, "Cognitive"),
-        _call_agent_safe(transaction_agent, transaction_input, "Transaction"),
+        _call_agent_with_progress(behavioral_agent, behavioral_input, "Behavioral", progress_callback),
+        _call_agent_with_progress(cognitive_agent, cognitive_input, "Cognitive", progress_callback),
+        _call_agent_with_progress(transaction_agent, transaction_input, "Transaction", progress_callback),
     )
     await asyncio.sleep(2)  # brief pause to respect rate limits
     device_result, graph_result = await asyncio.gather(
-        _call_agent_safe(device_agent, device_input, "Device"),
-        _call_agent_safe(graph_agent, graph_input, "Graph"),
+        _call_agent_with_progress(device_agent, device_input, "Device", progress_callback),
+        _call_agent_with_progress(graph_agent, graph_input, "Graph", progress_callback),
     )
 
     # Extract scores
@@ -457,7 +472,7 @@ async def analyze_transaction(transaction_data: dict) -> FraudAssessmentResponse
         transaction_result, device_result, graph_result,
         formula_score, transaction_data,
     )
-    meta_result = await _call_agent_safe(meta_scorer_agent, meta_input, "MetaScorer")
+    meta_result = await _call_agent_with_progress(meta_scorer_agent, meta_input, "MetaScorer", progress_callback)
 
     elapsed_ms = round((time.time() - start_time) * 1000, 1)
 

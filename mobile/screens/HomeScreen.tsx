@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback } from "react";
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   StyleSheet,
   Alert,
@@ -11,7 +12,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { TelemetryTracker } from "../lib/telemetry";
-import { generateScenario } from "../lib/api";
+import { generateScenario, generateCustomScenario, getUserStatus } from "../lib/api";
 import SendMoneyModal from "../components/SendMoneyModal";
 
 interface Props {
@@ -28,8 +29,22 @@ export default function HomeScreen({ user, tracker, onLogout }: Props) {
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [demoExpanded, setDemoExpanded] = useState(false);
   const [demoLoading, setDemoLoading] = useState<string | null>(null);
+  const [customPrompt, setCustomPrompt] = useState("");
   const [toast, setToast] = useState<string | null>(null);
+  const [accountPaused, setAccountPaused] = useState(false);
+  const [pauseReason, setPauseReason] = useState("");
   const toastOpacity = useRef(new Animated.Value(0)).current;
+
+  // Check account status on mount and after actions
+  const checkAccountStatus = useCallback(async () => {
+    const status = await getUserStatus(user.userId);
+    setAccountPaused(status.paused);
+    setPauseReason(status.reason);
+  }, [user.userId]);
+
+  React.useEffect(() => {
+    checkAccountStatus();
+  }, [checkAccountStatus]);
 
   const showToast = useCallback(
     (message: string) => {
@@ -78,8 +93,34 @@ export default function HomeScreen({ user, tracker, onLogout }: Props) {
         `${user.name}\nFraud Score: ${score}/100\nRisk: ${risk}`,
         [{ text: "OK" }]
       );
+      checkAccountStatus();
     } catch {
       Alert.alert("Error", "Could not reach backend. Is it running?");
+    }
+    setDemoLoading(null);
+  };
+
+  const handleCustomGenerate = async () => {
+    if (!customPrompt.trim()) return;
+    handleInteraction();
+    setDemoLoading("custom");
+    showToast(`Generating scenario: "${customPrompt.slice(0, 40)}..."`);
+
+    try {
+      const result = await generateCustomScenario(user.userId, customPrompt.trim());
+      const assessment = result?.assessment || {};
+      const score =
+        assessment?.meta?.cumulative_fraud_score ?? "N/A";
+      const risk = assessment?.meta?.risk_level ?? "unknown";
+      Alert.alert(
+        "Pipeline Complete",
+        `${user.name}\nFraud Score: ${score}/100\nRisk: ${risk}\n\nScenario: ${result?.description || customPrompt}`,
+        [{ text: "OK" }]
+      );
+      setCustomPrompt("");
+      checkAccountStatus();
+    } catch {
+      Alert.alert("Error", "Could not generate scenario. Is the backend running?");
     }
     setDemoLoading(null);
   };
@@ -90,6 +131,92 @@ export default function HomeScreen({ user, tracker, onLogout }: Props) {
     { name: "Netflix", amount: -16.49, date: "Mar 8" },
     { name: "Interac e-Transfer", amount: -200.0, date: "Mar 5" },
   ];
+
+  // Paused account — show full-page block
+  if (accountPaused) {
+    return (
+      <SafeAreaView style={styles.container}>
+        {/* Demo bar still accessible for demo purposes */}
+        <View style={styles.demoBar}>
+          <TouchableOpacity
+            onPress={() => setDemoExpanded(!demoExpanded)}
+            style={styles.demoChevron}
+          >
+            <Ionicons
+              name={demoExpanded ? "chevron-down" : "chevron-forward"}
+              size={14}
+              color="#555"
+            />
+          </TouchableOpacity>
+          {demoExpanded && (
+            <View style={styles.demoContent}>
+              <Text style={styles.demoHint}>Data seeding for demo purposes</Text>
+              <View style={styles.demoRow}>
+                <Text style={styles.demoLabel}>Generate (Incoming):</Text>
+                <TouchableOpacity
+                  style={styles.demoButton}
+                  onPress={() => handleGenerate("safe")}
+                  disabled={!!demoLoading}
+                >
+                  <Text style={styles.demoButtonText}>
+                    {demoLoading === "safe" ? "..." : "Safe"}
+                  </Text>
+                </TouchableOpacity>
+                <Text style={styles.demoDash}>-</Text>
+                <TouchableOpacity
+                  style={[styles.demoButton, styles.demoButtonDanger]}
+                  onPress={() => handleGenerate("suspicious")}
+                  disabled={!!demoLoading}
+                >
+                  <Text style={styles.demoButtonText}>
+                    {demoLoading === "suspicious" ? "..." : "Suspicious"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.customPromptSection}>
+                <Text style={styles.demoLabel}>Custom AI Scenario:</Text>
+                <TextInput
+                  style={styles.customPromptInput}
+                  placeholder="e.g. user is on a call being coached by a scammer..."
+                  placeholderTextColor="#555"
+                  value={customPrompt}
+                  onChangeText={setCustomPrompt}
+                  multiline
+                  editable={!demoLoading}
+                />
+                <TouchableOpacity
+                  style={[
+                    styles.customPromptButton,
+                    (!customPrompt.trim() || !!demoLoading) && styles.customPromptButtonDisabled,
+                  ]}
+                  onPress={handleCustomGenerate}
+                  disabled={!customPrompt.trim() || !!demoLoading}
+                >
+                  <Text style={styles.demoButtonText}>
+                    {demoLoading === "custom" ? "Generating..." : "Generate"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.pausedPage}>
+          <View style={styles.pausedIconWrap}>
+            <Ionicons name="lock-closed" size={48} color="#E24B4A" />
+          </View>
+          <Text style={styles.pausedTitle}>Your account is paused</Text>
+          <Text style={styles.pausedReason}>{pauseReason}</Text>
+          <Text style={styles.pausedContact}>
+            Contact TD Bank at 1-866-222-3456 or visit your nearest branch.
+          </Text>
+          <TouchableOpacity style={styles.logoutButton} onPress={onLogout}>
+            <Text style={styles.logoutText}>Logout</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} onTouchStart={handleInteraction}>
@@ -135,6 +262,30 @@ export default function HomeScreen({ user, tracker, onLogout }: Props) {
               >
                 <Text style={styles.demoButtonText}>
                   {demoLoading === "suspicious" ? "..." : "Suspicious"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.customPromptSection}>
+              <Text style={styles.demoLabel}>Custom AI Scenario:</Text>
+              <TextInput
+                style={styles.customPromptInput}
+                placeholder="e.g. user is on a call being coached by a scammer..."
+                placeholderTextColor="#555"
+                value={customPrompt}
+                onChangeText={setCustomPrompt}
+                multiline
+                editable={!demoLoading}
+              />
+              <TouchableOpacity
+                style={[
+                  styles.customPromptButton,
+                  (!customPrompt.trim() || !!demoLoading) && styles.customPromptButtonDisabled,
+                ]}
+                onPress={handleCustomGenerate}
+                disabled={!customPrompt.trim() || !!demoLoading}
+              >
+                <Text style={styles.demoButtonText}>
+                  {demoLoading === "custom" ? "Generating..." : "Generate"}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -256,6 +407,7 @@ export default function HomeScreen({ user, tracker, onLogout }: Props) {
         }}
         onAnalysisComplete={(score, risk, amount, name) => {
           showToast(`${name}: Score ${score}/100 (${risk})`);
+          checkAccountStatus();
         }}
       />
     </SafeAreaView>
@@ -292,6 +444,44 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "500",
     flex: 1,
+  },
+  pausedPage: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 40,
+  },
+  pausedIconWrap: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: "#1C1C1E",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: "#E24B4A",
+  },
+  pausedTitle: {
+    color: "#E24B4A",
+    fontSize: 22,
+    fontWeight: "700",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  pausedReason: {
+    color: "#CCCCCC",
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  pausedContact: {
+    color: "#8E8E93",
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: "center",
+    marginBottom: 24,
   },
   demoBar: {
     flexDirection: "row",
@@ -341,6 +531,34 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 11,
     fontWeight: "600",
+  },
+  customPromptSection: {
+    marginTop: 8,
+    gap: 4,
+  },
+  customPromptInput: {
+    backgroundColor: "#1C1C1E",
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#2C2C2E",
+    color: "#FFFFFF",
+    fontSize: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    minHeight: 36,
+    maxHeight: 70,
+  },
+  customPromptButton: {
+    backgroundColor: "#1B2D4A",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: "#4A90D9",
+    alignSelf: "flex-start",
+  },
+  customPromptButtonDisabled: {
+    opacity: 0.4,
   },
   header: {
     flexDirection: "row",
