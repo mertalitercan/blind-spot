@@ -6,6 +6,9 @@ from datetime import datetime, timezone
 
 assessments: list[dict] = []
 alerts: list[dict] = []
+pending_assessments: dict[str, dict] = {}
+dismissed_ids: set[str] = set()
+paused_overrides: dict[str, bool] = {}  # user_id -> manual pause state
 websocket_connections: set = set()
 
 
@@ -53,11 +56,60 @@ def save_assessment(user_id: str, user_name: str, result: dict, transaction_dire
     return entry
 
 
+def save_pending_assessment(pending_id: str, user_id: str, user_name: str, direction: str = "outgoing"):
+    """Create a placeholder assessment while agents are running."""
+    pending_assessments[pending_id] = {
+        "id": pending_id,
+        "user_id": user_id,
+        "user_name": user_name,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "transaction_direction": direction,
+        "status": "processing",
+    }
+
+
+def remove_pending(pending_id: str):
+    """Remove a pending assessment after it's finalized."""
+    pending_assessments.pop(pending_id, None)
+
+
+def dismiss_assessment(assessment_id: str) -> bool:
+    """Dismiss an assessment from the dashboard view."""
+    for a in assessments:
+        if a["id"] == assessment_id:
+            dismissed_ids.add(assessment_id)
+            return True
+    return False
+
+
+def toggle_pause(user_id: str) -> dict:
+    """Toggle the pause state for a user. Returns the new state."""
+    current = is_user_paused(user_id)
+    paused_overrides[user_id] = not current
+    return {"user_id": user_id, "paused": not current}
+
+
+def is_user_paused(user_id: str) -> bool:
+    """Check if a user is paused (manual override or auto from score)."""
+    if user_id in paused_overrides:
+        return paused_overrides[user_id]
+    # Auto-pause: latest assessment score >= 71
+    user_assessments = [a for a in assessments if a["user_id"] == user_id and a["id"] not in dismissed_ids]
+    if not user_assessments:
+        return False
+    latest = max(user_assessments, key=lambda x: x["timestamp"])
+    return latest["cumulative_fraud_score"] >= 71
+
+
 def get_assessments(risk: str | None = None) -> list[dict]:
-    items = assessments
+    items = [a for a in assessments if a["id"] not in dismissed_ids]
     if risk:
         items = [a for a in items if a["risk_level"] == risk]
-    return sorted(items, key=lambda x: x["cumulative_fraud_score"], reverse=True)
+    result = sorted(items, key=lambda x: x["cumulative_fraud_score"], reverse=True)
+    # Attach current pause state per user
+    for item in result:
+        item["paused"] = is_user_paused(item["user_id"])
+    return result
 
 
 def get_assessment_by_id(assessment_id: str) -> dict | None:
@@ -83,6 +135,24 @@ def get_user_assessments(user_id: str) -> list[dict]:
         key=lambda x: x["timestamp"],
         reverse=True,
     )
+
+
+def get_user_status(user_id: str) -> dict:
+    """Check if a user's account is paused."""
+    paused = is_user_paused(user_id)
+    if not paused:
+        return {"paused": False, "reason": ""}
+    user_assessments = [a for a in assessments if a["user_id"] == user_id]
+    if user_assessments:
+        latest = max(user_assessments, key=lambda x: x["timestamp"])
+        score = latest.get("cumulative_fraud_score", 0)
+        risk = latest.get("risk_level", "unknown")
+        if risk == "red":
+            reason = "Suspicious activity was detected on your account. Your account has been temporarily frozen for your protection."
+        else:
+            reason = "Unusual activity was detected on your account. Your account has been temporarily paused for review."
+        return {"paused": True, "reason": reason}
+    return {"paused": True, "reason": "Your account has been temporarily paused due to unusual activity."}
 
 
 def get_alerts(unread_only: bool = False) -> list[dict]:
