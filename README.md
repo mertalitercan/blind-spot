@@ -42,7 +42,7 @@ Each agent returns a risk score (0-100), confidence level, specific flags, and n
 
 ## System Architecture
 
-![System Architecture](assets/architecture.png)
+![System Architecture](system_design.jpeg)
 
 Agents 1-5 execute **in parallel** using `asyncio.gather`. The meta-reasoning agent runs after all five complete, synthesizing their outputs with a weighted scoring formula (Cognitive 30%, Behavioral 20%, Transaction 20%, Graph 20%, Device 10%).
 
