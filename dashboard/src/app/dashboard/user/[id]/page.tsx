@@ -36,13 +36,13 @@ const AGENTS = [
 function scoreColor(s: number) {
   if (s >= 71) return "text-red-400";
   if (s >= 31) return "text-amber-400";
-  return "text-emerald-400";
+  return "text-[#2E7D32]";
 }
 
 function barColor(s: number) {
   if (s >= 71) return "bg-red-400";
   if (s >= 31) return "bg-amber-400";
-  return "bg-emerald-400";
+  return "bg-[#2E7D32]";
 }
 
 export default function UserDetailPage() {
@@ -115,7 +115,7 @@ export default function UserDetailPage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
+          <div className="w-2 h-2 rounded-full bg-[#2E7D32] animate-pulse" />
           <span className="text-slate-500">Loading case...</span>
         </div>
       </div>
@@ -161,7 +161,7 @@ export default function UserDetailPage() {
                 <circle cx="18" cy="18" r="15" fill="none" stroke="#1E1E35" strokeWidth="2.5" />
                 <circle
                   cx="18" cy="18" r="15" fill="none"
-                  stroke={finalScore >= 71 ? "#f87171" : finalScore >= 31 ? "#fbbf24" : "#34d399"}
+                  stroke={finalScore >= 71 ? "#f87171" : finalScore >= 31 ? "#fbbf24" : "#2E7D32"}
                   strokeWidth="2.5"
                   strokeDasharray={`${(finalScore / 100) * 94.2} 94.2`}
                   strokeLinecap="round"
@@ -290,7 +290,7 @@ export default function UserDetailPage() {
           <div className="bg-[#0F0F1A] border border-[#1E1E35] rounded-2xl flex flex-col h-[calc(100vh-130px)] sticky top-8">
             <div className="p-5 border-b border-[#1E1E35]">
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
+                <div className="w-2 h-2 rounded-full bg-[#2E7D32] animate-pulse" />
                 <h3 className="font-semibold text-sm">BlindSpot AI</h3>
               </div>
               <p className="text-xs text-slate-600 mt-1">
@@ -328,7 +328,7 @@ export default function UserDetailPage() {
                   key={i}
                   className={`text-sm rounded-2xl p-4 ${
                     msg.role === "user"
-                      ? "bg-indigo-500/10 border border-indigo-500/20 ml-6"
+                      ? "bg-[#2E7D32]/10 border border-[#2E7D32]/20 ml-6"
                       : "bg-[#141425] border border-[#1E1E35] mr-6"
                   }`}
                 >
@@ -347,9 +347,9 @@ export default function UserDetailPage() {
                     BlindSpot AI
                   </p>
                   <div className="flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" />
-                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce [animation-delay:150ms]" />
-                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce [animation-delay:300ms]" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-[#2E7D32] animate-bounce" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-[#2E7D32] animate-bounce [animation-delay:150ms]" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-[#2E7D32] animate-bounce [animation-delay:300ms]" />
                   </div>
                 </div>
               )}
@@ -364,12 +364,12 @@ export default function UserDetailPage() {
                   onChange={(e) => setChatInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && sendChat()}
                   placeholder="Ask about this case..."
-                  className="flex-1 bg-[#050510] border border-[#1E1E35] rounded-xl px-4 py-2.5 text-sm outline-none focus:border-indigo-500/50 transition placeholder:text-slate-700"
+                  className="flex-1 bg-[#050510] border border-[#1E1E35] rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#2E7D32]/50 transition placeholder:text-slate-700"
                 />
                 <button
                   onClick={sendChat}
                   disabled={chatLoading || !chatInput.trim()}
-                  className="bg-indigo-500 hover:bg-indigo-600 disabled:opacity-30 rounded-xl px-5 py-2.5 text-sm font-medium transition"
+                  className="bg-[#2E7D32] hover:bg-[#2E7D32] disabled:opacity-30 rounded-xl px-5 py-2.5 text-sm font-medium transition"
                 >
                   Ask
                 </button>

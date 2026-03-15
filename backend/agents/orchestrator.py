@@ -34,29 +34,76 @@ from models.schemas import (
 logger = logging.getLogger(__name__)
 
 
+def _compute_session_stats(sessions: list[dict]) -> dict:
+    """Compute aggregate statistics from ALL historical sessions."""
+    if not sessions:
+        return {}
+
+    def _stats(values: list[float]) -> dict:
+        if not values:
+            return {"mean": 0, "min": 0, "max": 0, "std": 0}
+        n = len(values)
+        mean = sum(values) / n
+        variance = sum((v - mean) ** 2 for v in values) / max(n - 1, 1)
+        return {
+            "mean": round(mean, 3),
+            "min": round(min(values), 3),
+            "max": round(max(values), 3),
+            "std": round(variance ** 0.5, 3),
+        }
+
+    speeds = [s.get("typing_speed_wpm", 0) for s in sessions if s.get("typing_speed_wpm")]
+    errors = [s.get("error_rate", 0) for s in sessions if s.get("error_rate") is not None]
+    pressures = [s.get("avg_touch_pressure", 0) for s in sessions if s.get("avg_touch_pressure")]
+    radii = [s.get("avg_touch_radius", 0) for s in sessions if s.get("avg_touch_radius")]
+    directness = [s.get("navigation_directness_score", 0) for s in sessions if s.get("navigation_directness_score")]
+    durations = [s.get("session_duration_ms", 0) for s in sessions if s.get("session_duration_ms")]
+    hesitations = [s.get("confirm_button_hesitation_ms", 0) for s in sessions if s.get("confirm_button_hesitation_ms")]
+
+    paste_count = sum(1 for s in sessions if s.get("paste_detected"))
+    segmented_count = sum(1 for s in sessions if s.get("segmented_typing_detected"))
+    devices = {}
+    for s in sessions:
+        d = s.get("device_id", "")
+        devices[d] = devices.get(d, 0) + 1
+
+    return {
+        "total_sessions": len(sessions),
+        "typing_speed_wpm": _stats(speeds),
+        "error_rate": _stats(errors),
+        "avg_touch_pressure": _stats(pressures),
+        "avg_touch_radius": _stats(radii),
+        "navigation_directness": _stats(directness),
+        "session_duration_ms": _stats(durations),
+        "confirm_hesitation_ms": _stats(hesitations),
+        "paste_frequency": round(paste_count / len(sessions), 3),
+        "segmented_typing_frequency": round(segmented_count / len(sessions), 3),
+        "known_devices": devices,
+    }
+
+
 def _build_behavioral_input(transaction_data: dict, baseline: dict, historical_sessions: list[dict]) -> str:
-    """Build the input message for the behavioral agent with historical session data."""
+    """Build the input message for the behavioral agent with full historical stats."""
     telemetry = transaction_data.get("behavioral_telemetry", {})
 
-    # Summarize historical sessions for the agent
-    session_summary = []
-    for s in historical_sessions[:15]:
-        session_summary.append({
+    # Compute aggregate stats from ALL sessions
+    aggregate_stats = _compute_session_stats(historical_sessions)
+
+    # Also include last 5 individual sessions for recency context
+    recent = []
+    for s in historical_sessions[:5]:
+        recent.append({
             "timestamp": s.get("timestamp", ""),
             "typing_speed_wpm": s.get("typing_speed_wpm", 0),
             "error_rate": s.get("error_rate", 0),
-            "typing_rhythm_signature": json.loads(s.get("typing_rhythm_signature", "[]")) if isinstance(s.get("typing_rhythm_signature"), str) else s.get("typing_rhythm_signature", []),
             "avg_touch_pressure": s.get("avg_touch_pressure", 0),
             "avg_touch_radius": s.get("avg_touch_radius", 0),
             "hand_dominance": s.get("hand_dominance", "unknown"),
             "navigation_directness_score": s.get("navigation_directness_score", 0),
             "session_duration_ms": s.get("session_duration_ms", 0),
-            "segmented_typing_detected": bool(s.get("segmented_typing_detected", 0)),
             "paste_detected": bool(s.get("paste_detected", 0)),
-            "paste_field": s.get("paste_field", ""),
             "confirm_attempts": s.get("confirm_attempts", 1),
             "device_id": s.get("device_id", ""),
-            "ip_address": s.get("ip_address", ""),
             "fraud_score": s.get("fraud_score", 0),
         })
 
@@ -90,8 +137,9 @@ def _build_behavioral_input(transaction_data: dict, baseline: dict, historical_s
             "avg_session_duration_ms": baseline.get("avg_session_duration_ms", 180000),
             "typical_error_rate": baseline.get("typical_error_rate", 0.05),
         },
-        "historical_sessions": session_summary,
-        "historical_session_count": len(session_summary),
+        "historical_aggregate_stats": aggregate_stats,
+        "recent_sessions": recent,
+        "total_historical_sessions": len(historical_sessions),
     }, indent=2)
 
 
@@ -357,7 +405,7 @@ async def analyze_transaction(transaction_data: dict) -> FraudAssessmentResponse
     recipient_profile = get_recipient_business_profile(transaction_data.get("recipient_account_id", ""))
 
     # Get historical data from database
-    historical_sessions = get_user_sessions(user_id, limit=5)
+    historical_sessions = get_user_sessions(user_id, limit=1000)
     ip_history = get_user_ip_history(user_id)
 
     # Compute geolocation distance

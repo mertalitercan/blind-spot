@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from routers import demo, transactions, dashboard, websocket_router
-from database import init_db, seed_historical_sessions
+from database import init_db, supabase
 
 logging.basicConfig(level=logging.INFO)
 
@@ -32,7 +32,11 @@ app.include_router(websocket_router.router)
 @app.on_event("startup")
 async def startup():
     init_db()
-    seed_historical_sessions()
+    # Only seed if database is empty
+    result = supabase.table("session_history").select("id").limit(1).execute()
+    if not result.data:
+        from seed.seed_rich_history import seed_all
+        seed_all()
 
 
 @app.get("/api/health")

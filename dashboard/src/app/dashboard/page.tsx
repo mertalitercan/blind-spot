@@ -25,22 +25,22 @@ interface Alert {
 }
 
 const TAB_STYLES: Record<string, { active: string; dot: string; label: string }> = {
-  all: { active: "border-indigo-400 text-indigo-300", dot: "", label: "All Cases" },
+  all: { active: "border-[#2E7D32] text-[#2E7D32]", dot: "", label: "All Cases" },
   red: { active: "border-red-400 text-red-300", dot: "bg-red-400", label: "High Risk" },
   yellow: { active: "border-amber-400 text-amber-300", dot: "bg-amber-400", label: "Medium" },
-  green: { active: "border-emerald-400 text-emerald-300", dot: "bg-emerald-400", label: "Low Risk" },
+  green: { active: "border-[#2E7D32] text-[#2E7D32]", dot: "bg-[#2E7D32]", label: "Low Risk" },
 };
 
 function scoreGradient(score: number) {
   if (score >= 71) return "from-red-500/20 to-red-500/5 border-red-500/20";
   if (score >= 31) return "from-amber-500/20 to-amber-500/5 border-amber-500/20";
-  return "from-emerald-500/20 to-emerald-500/5 border-emerald-500/20";
+  return "from-[#2E7D32]/20 to-[#2E7D32]/5 border-[#2E7D32]/20";
 }
 
 function scoreText(score: number) {
   if (score >= 71) return "text-red-400";
   if (score >= 31) return "text-amber-400";
-  return "text-emerald-400";
+  return "text-[#2E7D32]";
 }
 
 export default function DashboardPage() {
@@ -107,7 +107,7 @@ export default function DashboardPage() {
         <div className="flex items-center gap-5">
           {/* Live indicator */}
           <div className="flex items-center gap-2 text-xs text-slate-500">
-            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <div className="w-2 h-2 rounded-full bg-[#2E7D32] animate-pulse" />
             Live
           </div>
 
@@ -153,7 +153,7 @@ export default function DashboardPage() {
                               ? "bg-red-400"
                               : alert.risk_level === "yellow"
                               ? "bg-amber-400"
-                              : "bg-emerald-400"
+                              : "bg-[#2E7D32]"
                           }`}
                         />
                         <div className="min-w-0">
@@ -255,7 +255,7 @@ export default function DashboardPage() {
                             ? "#f87171"
                             : user.cumulative_fraud_score >= 31
                             ? "#fbbf24"
-                            : "#34d399"
+                            : "#2E7D32"
                         }
                         strokeWidth="3"
                         strokeDasharray={`${

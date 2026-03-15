@@ -20,6 +20,7 @@ interface Props {
   tracker: TelemetryTracker | null;
   onClose: () => void;
   onSent: (amount: number, recipientName: string) => void;
+  onAnalysisComplete?: (score: string, risk: string, amount: number, name: string) => void;
 }
 
 const NAME_TO_ID: Record<string, string> = {
@@ -37,10 +38,10 @@ export default function SendMoneyModal({
   tracker,
   onClose,
   onSent,
+  onAnalysisComplete,
 }: Props) {
   const [recipientName, setRecipientName] = useState("");
   const [amount, setAmount] = useState("");
-  const [sending, setSending] = useState(false);
   const prevTexts = useRef<Record<string, string>>({
     recipientName: "",
     amount: "",
@@ -62,7 +63,7 @@ export default function SendMoneyModal({
     return NAME_TO_ID[key] || key.replace(/\s+/g, "-");
   };
 
-  const handleSend = async () => {
+  const handleSend = () => {
     if (!recipientName.trim() || !amount.trim()) {
       Alert.alert("Missing Fields", "Please fill in all fields.");
       return;
@@ -75,21 +76,24 @@ export default function SendMoneyModal({
     }
 
     tracker?.recordConfirmPress();
-    setSending(true);
 
-    // Immediately update UI
-    onSent(parsedAmount, recipientName.trim());
-
-    // Build transaction payload from real telemetry
+    // Capture telemetry snapshot BEFORE closing
     const snapshot = tracker?.getSnapshot();
     const recipientId = resolveRecipientId(recipientName);
+    const name = recipientName.trim();
 
+    // Immediately: update balance, show toast, close modal
+    onSent(parsedAmount, name);
+    resetForm();
+    onClose();
+
+    // Build payload and fire analysis in background
     const payload = {
       user_id: userId,
       amount: parsedAmount,
       currency: "CAD",
       recipient_account_id: recipientId,
-      recipient_name: recipientName.trim(),
+      recipient_name: name,
       recipient_institution: "Interac",
       transaction_type: "e_transfer",
       ip_address: "24.114.52.100",
@@ -158,24 +162,17 @@ export default function SendMoneyModal({
       },
     };
 
-    try {
-      const result = await submitTransaction(payload);
-      const assessment = result?.assessment || {};
-      const score = assessment?.meta?.cumulative_fraud_score ?? "N/A";
-      const risk = assessment?.meta?.risk_level ?? "unknown";
-      Alert.alert(
-        "Transfer Analyzed",
-        `Sent $${parsedAmount.toFixed(2)} to ${recipientName.trim()}\nFraud Score: ${score}/100\nRisk: ${risk}`,
-        [{ text: "OK" }]
-      );
-    } catch {
-      // Transfer still went through visually
-      Alert.alert("Note", "Transfer sent. Backend analysis unavailable.");
-    }
-
-    setSending(false);
-    resetForm();
-    onClose();
+    // Fire and forget — notify via callback when done
+    submitTransaction(payload)
+      .then((result) => {
+        const assessment = result?.assessment || {};
+        const score = String(assessment?.meta?.cumulative_fraud_score ?? "N/A");
+        const risk = String(assessment?.meta?.risk_level ?? "unknown");
+        onAnalysisComplete?.(score, risk, parsedAmount, name);
+      })
+      .catch(() => {
+        // Transfer already went through visually — silently ignore
+      });
   };
 
   const resetForm = () => {
@@ -230,17 +227,14 @@ export default function SendMoneyModal({
           />
 
           <TouchableOpacity
-            style={[styles.sendButton, sending && styles.sendButtonDisabled]}
+            style={styles.sendButton}
             onPress={() => {
               tracker?.recordConfirmApproach();
               handleSend();
             }}
             activeOpacity={0.8}
-            disabled={sending}
           >
-            <Text style={styles.sendButtonText}>
-              {sending ? "Sending..." : "Send e-Transfer"}
-            </Text>
+            <Text style={styles.sendButtonText}>Send e-Transfer</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -295,9 +289,6 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: "center",
     marginTop: 12,
-  },
-  sendButtonDisabled: {
-    opacity: 0.5,
   },
   sendButtonText: {
     color: "#FFFFFF",

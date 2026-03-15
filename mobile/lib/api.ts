@@ -42,3 +42,14 @@ export async function triggerDemoScenario(
   );
   return res.json();
 }
+
+export async function generateScenario(
+  userId: string,
+  type: "safe" | "suspicious"
+): Promise<any> {
+  const res = await fetch(
+    `${API_BASE}/api/demo/generate/${userId}/${type}`,
+    { method: "POST" }
+  );
+  return res.json();
+}

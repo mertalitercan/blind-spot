@@ -1,6 +1,7 @@
 """Pre-built demo scenarios with fully synthetic data for testing the agent pipeline."""
 
 import math
+import random as _rng
 
 # --- Sender/Recipient business profiles for contextual transaction analysis ---
 
@@ -1034,3 +1035,391 @@ def get_recipient_business_profile(recipient_account_id: str) -> dict:
         "years_in_business": 0,
         "website": None,
     })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DYNAMIC SCENARIO GENERATION (user-aware)
+# ─────────────────────────────────────────────────────────────────────────────
+
+_suspicious_counter: dict[str, int] = {}
+
+_USER_DEVICES = {
+    "mertali-tercan": {"device_id": "iPhone-16-Pro-MT001", "os": "iOS 18.1", "os_version": "18.1", "app_version": "5.3.0", "screen_resolution": "1206x2622", "language": "tr-TR"},
+    "ediz-uysal": {"device_id": "Galaxy-S24-EU002", "os": "Android 15", "os_version": "15.0", "app_version": "5.3.0", "screen_resolution": "1080x2340", "language": "en-CA"},
+    "deniz-coban": {"device_id": "iPad-Air-DC003", "os": "iPadOS 18.0", "os_version": "18.0", "app_version": "5.3.0", "screen_resolution": "1640x2360", "language": "en-CA"},
+}
+
+_FOREIGN_LOCS = [
+    {"city": "Berlin", "country": "DE", "lat": 52.52, "lng": 13.41},
+    {"city": "Istanbul", "country": "TR", "lat": 41.01, "lng": 28.98},
+    {"city": "Lagos", "country": "NG", "lat": 6.52, "lng": 3.38},
+]
+
+_OTHER_DEVICES = {
+    "mertali-tercan": {"device_id": "Unknown-Android-X", "os": "Android 14", "os_version": "14.0", "app_version": "5.3.0", "screen_resolution": "1080x2400", "language": "en-US"},
+    "ediz-uysal": {"device_id": "iPad-Unknown-999", "os": "iPadOS 17.0", "os_version": "17.0", "app_version": "5.3.0", "screen_resolution": "1640x2360", "language": "en-US"},
+    "deniz-coban": {"device_id": "Galaxy-S24-UNKNOWN", "os": "Android 15", "os_version": "15.0", "app_version": "5.3.0", "screen_resolution": "1080x2340", "language": "en-US"},
+}
+
+
+def _make_ip(baseline: dict) -> str:
+    ip_range = baseline.get("typical_ip_range", "24.114.x.x")
+    parts = ip_range.split(".")
+    return f"{parts[0]}.{parts[1]}.{_rng.randint(1,254)}.{_rng.randint(1,254)}"
+
+
+def _build_payload(
+    user_id: str, baseline: dict, loc: dict, device: dict,
+    recipient_id: str, amount: float, typing_speed: float, error_rate: float,
+    rhythm: list, pressure: float, radius: float, hand: str,
+    directness: float, session_dur: int, hesitation: int, confirm_attempts: int,
+    ip: str, ip_loc: dict, auth: str, hour: int,
+    paste: bool, paste_field: str, segmented: bool,
+    phone_call: bool, phone_dur: int, is_vpn: bool, is_emulator: bool,
+    is_rooted: bool, familiarity: float, dead_time: int,
+) -> dict:
+    """Build a full transaction payload from parameters."""
+    recipient_biz = RECIPIENT_PROFILES_BUSINESS.get(recipient_id, {})
+    timestamp = f"2026-03-14T{hour:02d}:{_rng.randint(0,59):02d}:00Z"
+
+    return {
+        "user_id": user_id,
+        "amount": amount,
+        "currency": "CAD",
+        "recipient_account_id": recipient_id,
+        "recipient_name": recipient_biz.get("business_name", ""),
+        "recipient_institution": "TD Bank",
+        "transaction_type": "e_transfer",
+        "ip_address": ip,
+        "ip_geolocation": {
+            "lat": ip_loc.get("lat", loc["lat"]),
+            "lng": ip_loc.get("lng", loc["lng"]),
+            "city": ip_loc.get("city", loc["city"]),
+            "country": ip_loc.get("country", loc["country"]),
+        },
+        "device_fingerprint": {
+            **device,
+            "timezone": "America/Toronto" if not is_vpn else "Europe/Berlin",
+            "is_emulator": is_emulator,
+            "is_rooted_jailbroken": is_rooted,
+            "is_vpn_active": is_vpn,
+            "is_proxy_detected": False,
+            "is_remote_desktop_active": False,
+            "is_screen_sharing": False,
+            "battery_level": round(_rng.uniform(0.2, 0.95), 2),
+            "is_charging": _rng.random() < 0.2,
+        },
+        "session_context": {
+            "is_phone_call_active": phone_call,
+            "phone_call_duration_ms": phone_dur,
+            "clipboard_used": paste,
+            "clipboard_content_type": "text" if paste else "unknown",
+            "notification_count_during_session": _rng.randint(0, 5),
+            "screen_brightness": round(_rng.uniform(0.5, 0.9), 2),
+        },
+        "auth_method": auth,
+        "timestamp": timestamp,
+        "behavioral_telemetry": {
+            "keystroke_events": [
+                {"key": "1", "timestamp_ms": 1000, "dwell_time_ms": max(10, round(1000 / max(typing_speed, 1) * 12)), "flight_time_ms": rhythm[0]},
+                {"key": "0", "timestamp_ms": 1000 + rhythm[0], "dwell_time_ms": max(10, round(1000 / max(typing_speed, 1) * 12)), "flight_time_ms": rhythm[1]},
+            ],
+            "typing_speed_wpm": typing_speed,
+            "error_rate": error_rate,
+            "typing_rhythm_signature": rhythm,
+            "segmented_typing_detected": segmented,
+            "paste_detected": paste,
+            "paste_field": paste_field,
+            "touch_events": [],
+            "avg_touch_pressure": pressure,
+            "avg_touch_radius": radius,
+            "swipe_velocity_avg": round(_rng.uniform(350, 750), 1),
+            "tap_duration_avg_ms": round(_rng.uniform(40, 85), 1),
+            "hand_dominance": hand,
+            "navigation_path": [
+                {"screen_name": "home", "timestamp_ms": 0, "duration_ms": int(session_dur * 0.08)},
+                {"screen_name": "send_money", "timestamp_ms": int(session_dur * 0.08), "duration_ms": int(session_dur * 0.8)},
+                {"screen_name": "confirm", "timestamp_ms": int(session_dur * 0.88), "duration_ms": int(session_dur * 0.12)},
+            ],
+            "navigation_directness_score": min(directness, 0.95),
+            "time_per_screen_ms": {
+                "home": int(session_dur * 0.08),
+                "send_money": int(session_dur * 0.8),
+                "confirm": int(session_dur * 0.12),
+            },
+            "screen_familiarity_score": familiarity,
+            "confirm_button_hesitation_ms": hesitation,
+            "confirm_attempts": confirm_attempts,
+            "dead_time_periods": [],
+            "total_dead_time_ms": dead_time,
+            "app_switches": [{"timestamp_ms": 5000, "duration_ms": 3000}] if phone_call else [],
+        },
+    }
+
+
+def generate_dynamic_scenario(user_id: str, scenario_type: str) -> dict:
+    """Generate a scenario dynamically based on user's baseline behavior.
+
+    For 'safe': all behavioral signals match the user's normal patterns.
+    For 'suspicious': 2 out of 3 calls produce MEDIUM risk, 1 out of 3 HIGH risk.
+    """
+    baseline = USER_BASELINES.get(user_id)
+    if not baseline:
+        raise ValueError(f"Unknown user: {user_id}")
+
+    sender = SENDER_PROFILES.get(user_id, {})
+    loc = sender.get("typical_location", {"city": "Toronto", "country": "CA", "lat": 43.65, "lng": -79.38})
+    device = _USER_DEVICES.get(user_id, _USER_DEVICES["ediz-uysal"])
+
+    if scenario_type == "safe":
+        return _gen_safe(user_id, baseline, loc, device)
+
+    # 2 out of 3 suspicious → medium, 1 out of 3 → high
+    counter = _suspicious_counter.get(user_id, 0)
+    _suspicious_counter[user_id] = counter + 1
+    severity = "high" if counter % 3 == 2 else "medium"
+    return _gen_suspicious(user_id, baseline, loc, device, severity)
+
+
+def _gen_safe(user_id: str, bl: dict, loc: dict, device: dict) -> dict:
+    """Generate a safe scenario — ranges match seed_rich_history.py exactly."""
+    tx = bl.get("transaction_history", {})
+    recipients = tx.get("typical_recipients", ["landlord-utilities"])
+    recipient_id = _rng.choice(recipients)
+    is_deniz = user_id == "deniz-coban"
+    is_mertali = user_id == "mertali-tercan"
+    is_ediz = user_id == "ediz-uysal"
+
+    # Ranges pulled directly from seed_rich_history.py per user
+    if is_mertali:
+        is_big_txn = _rng.random() < 0.15
+        amount = round(_rng.uniform(500, 800) if is_big_txn else _rng.uniform(20, 300), 2)
+        typing_speed = round(_rng.uniform(60, 85), 1)  # includes typo-burst range
+        error_rate = round(_rng.uniform(0.008, 0.08), 4)  # includes typo bursts
+        pressure = round(_rng.uniform(0.42, 0.54), 3)
+        radius = round(_rng.uniform(10.5, 12.5), 2)
+        directness = round(_rng.uniform(0.55, 0.92), 3)
+        session_dur = _rng.randint(120000, 200000) if is_big_txn else _rng.randint(60000, 110000)
+        hesitation = _rng.randint(50, 250)
+        auth = "biometric"
+        paste = False
+        paste_field = ""
+        segmented = False
+        confirm_attempts = 1
+        dead_time = 0
+        # 8% chance of travel IP
+        if _rng.random() < 0.08:
+            travel_city = _rng.choice(["Montreal", "Ottawa", "Vancouver"])
+            ip_lats = {"Montreal": 45.50, "Ottawa": 45.42, "Vancouver": 49.28}
+            ip_lngs = {"Montreal": -73.57, "Ottawa": -75.69, "Vancouver": -123.12}
+            ip = f"24.{_rng.randint(100,200)}.{_rng.randint(1,254)}.{_rng.randint(1,254)}"
+            ip_loc = {"lat": ip_lats[travel_city], "lng": ip_lngs[travel_city], "city": travel_city, "country": "CA"}
+        else:
+            ip = f"24.114.{_rng.randint(1,254)}.{_rng.randint(1,254)}"
+            ip_loc = loc
+        familiarity = round(_rng.uniform(0.75, 0.95), 3)
+        phone_call = False
+    elif is_ediz:
+        amount = round(_rng.uniform(30, 500), 2)
+        typing_speed = round(_rng.uniform(38, 48), 1)
+        error_rate = round(_rng.uniform(0.03, 0.06), 4)
+        pressure = round(_rng.uniform(0.46, 0.56), 3)
+        radius = round(_rng.uniform(12.0, 14.5), 2)
+        directness = round(_rng.uniform(0.35, 0.55), 3)
+        session_dur = _rng.randint(140000, 220000)
+        hesitation = _rng.randint(200, 900)
+        auth = "password" if _rng.random() < 0.30 else "biometric"
+        paste = _rng.random() < 0.20
+        paste_field = "recipient_account" if paste else ""
+        segmented = False
+        confirm_attempts = 1
+        dead_time = _rng.randint(5000, 12000) if _rng.random() < 0.15 else 0
+        phone_call = _rng.random() < 0.05
+        ip = f"72.38.{_rng.randint(1,254)}.{_rng.randint(1,254)}"
+        ip_loc = loc
+        familiarity = round(_rng.uniform(0.55, 0.75), 3)
+    else:  # deniz
+        amount = round(_rng.uniform(15, 200), 2)
+        typing_speed = round(_rng.uniform(14, 24), 1)
+        error_rate = round(_rng.uniform(0.08, 0.16), 4)
+        pressure = round(_rng.uniform(0.58, 0.72), 3)
+        radius = round(_rng.uniform(15.0, 18.5), 2)
+        directness = round(_rng.uniform(0.15, 0.30), 3)
+        session_dur = _rng.randint(300000, 500000)
+        hesitation = _rng.randint(2000, 6000)
+        auth = "password"
+        paste = _rng.random() < 0.60
+        paste_field = _rng.choice(["amount", "recipient_account"]) if paste else ""
+        segmented = _rng.random() < 0.20
+        retries = _rng.random() < 0.25
+        confirm_attempts = _rng.choice([2, 3]) if retries else 1
+        dead_time = _rng.randint(8000, 25000) if _rng.random() < 0.40 else 0
+        phone_call = _rng.random() < 0.15
+        ip = f"99.225.{_rng.randint(80,95)}.{_rng.randint(1,254)}"
+        ip_loc = loc
+        familiarity = round(_rng.uniform(0.20, 0.45), 3)
+
+    rhythm = [round(r * _rng.uniform(0.85, 1.15)) for r in bl["typing_rhythm_signature"]]
+    hour = _rng.choice(bl.get("typical_login_hours", [10, 14]))
+    phone_dur = _rng.randint(60000, 300000) if phone_call else 0
+
+    payload = _build_payload(
+        user_id=user_id, baseline=bl, loc=loc, device=device,
+        recipient_id=recipient_id, amount=amount,
+        typing_speed=typing_speed, error_rate=error_rate, rhythm=rhythm,
+        pressure=pressure, radius=radius, hand=bl["hand_dominance"],
+        directness=directness, session_dur=session_dur, hesitation=hesitation,
+        confirm_attempts=confirm_attempts,
+        ip=ip, ip_loc=ip_loc, auth=auth, hour=hour,
+        paste=paste, paste_field=paste_field, segmented=segmented,
+        phone_call=phone_call, phone_dur=phone_dur,
+        is_vpn=False, is_emulator=False, is_rooted=False,
+        familiarity=familiarity, dead_time=dead_time,
+    )
+
+    return {
+        "description": f"Safe — {bl['name']} normal behavior",
+        "transaction_direction": "incoming",
+        "transaction": payload,
+    }
+
+
+def _gen_suspicious(user_id: str, bl: dict, loc: dict, device: dict, severity: str) -> dict:
+    """Generate a suspicious scenario.
+
+    MEDIUM: 2-3 signals off (behavioral + transaction flag, device/graph stay low).
+    HIGH:   Most signals off but NOT uniformly — varied per-agent scores.
+    """
+    tx = bl.get("transaction_history", {})
+    avg = tx.get("rolling_avg_amount_30d", 100)
+    max_amt = tx.get("max_amount_90d", 500)
+    spd = bl["avg_typing_speed_wpm"]
+    is_deniz = user_id == "deniz-coban"
+
+    if severity == "medium":
+        # ── MEDIUM: some things off, device + graph stay clean ──
+        recipient_id = _rng.choice(["friend-alex-890", "contractor-mike-456"])
+        amount = round(_rng.uniform(avg * 1.3, max_amt * 1.2), 2)
+
+        # Typing 20-40% off baseline
+        direction = _rng.choice([-1, 1])
+        typing_speed = round(max(5, spd * (1 + direction * _rng.uniform(0.2, 0.4))), 1)
+        error_rate = round(bl["typical_error_rate"] * _rng.uniform(1.5, 2.5), 4)
+        rhythm = [round(r * _rng.uniform(0.7, 1.3)) for r in bl["typing_rhythm_signature"]]
+
+        # Same device, same location → Device LOW, Graph LOW
+        use_device = device
+        ip = _make_ip(bl)
+        ip_loc = loc
+        is_vpn = False
+
+        # Touch slightly off
+        pressure = round(bl["avg_touch_pressure"] * _rng.uniform(0.85, 1.15), 3)
+        radius = round(bl["avg_touch_radius"] * _rng.uniform(0.9, 1.1), 2)
+        hand = bl["hand_dominance"]
+        directness = round(bl["typical_navigation_directness"] * _rng.uniform(0.7, 1.2), 3)
+        session_dur = int(bl["avg_session_duration_ms"] * _rng.uniform(0.7, 1.3))
+
+        # Unusual time → minor Cognitive signal
+        unusual = [h for h in range(24) if h not in bl.get("typical_login_hours", [])]
+        hour = _rng.choice(unusual) if unusual else 3
+
+        hesitation = int(
+            (_rng.randint(150, 400) if user_id == "mertali-tercan"
+             else _rng.randint(500, 1500) if user_id == "ediz-uysal"
+             else _rng.randint(4000, 8000))
+        )
+
+        paste = _rng.random() < 0.4
+        paste_field = "recipient_account" if paste else ""
+        phone_call = False
+        phone_dur = 0
+        auth = "password" if is_deniz else "biometric"
+        segmented = False
+        familiarity = round(_rng.uniform(0.5, 0.75), 3)
+        dead_time = _rng.randint(0, 3000)
+
+    else:
+        # ── HIGH: most signals off, but NOT uniform 80-100 across all agents ──
+        # Key: different agents should produce VARIED scores
+        recipient_id = _rng.choice(["NEW-MULE-ACCOUNT-789", "NEW-RECIPIENT-ATO-456", "SUSPECT-BERLIN-222"])
+        amount = round(_rng.uniform(max_amt * 1.5, max_amt * 3.0), 2)
+
+        # Typing very different from baseline
+        if is_deniz:
+            # ATO: someone fast on her account → Behavioral HIGH, Device depends
+            typing_speed = round(_rng.uniform(55, 75), 1)
+            error_rate = round(_rng.uniform(0.01, 0.03), 4)  # way too clean
+        elif user_id == "mertali-tercan":
+            # Someone much slower → Behavioral HIGH
+            typing_speed = round(_rng.uniform(20, 35), 1)
+            error_rate = round(_rng.uniform(0.06, 0.12), 4)
+        else:
+            # Very different speed for Ediz
+            typing_speed = round(spd * _rng.choice([0.4, 2.0]) * _rng.uniform(0.8, 1.2), 1)
+            error_rate = round(bl["typical_error_rate"] * _rng.uniform(3, 5), 4)
+
+        rhythm = [round(_rng.uniform(50, 200)) for _ in bl["typing_rhythm_signature"]]
+
+        # 60% chance different device → Device MEDIUM-HIGH
+        use_diff_device = _rng.random() < 0.6
+        use_device = _OTHER_DEVICES.get(user_id, device) if use_diff_device else device
+
+        # 50% chance VPN from abroad → Device boost
+        is_vpn = _rng.random() < 0.5
+        if is_vpn:
+            ip_loc = _rng.choice(_FOREIGN_LOCS)
+            ip = f"{_rng.randint(80,200)}.{_rng.randint(1,254)}.{_rng.randint(1,254)}.{_rng.randint(1,254)}"
+        else:
+            ip_loc = loc
+            ip = _make_ip(bl)
+
+        # Touch very different for Deniz ATO (light + precise = not her)
+        if is_deniz:
+            pressure = round(_rng.uniform(0.40, 0.50), 3)
+            radius = round(_rng.uniform(10, 12), 2)
+            hand = _rng.choice(["left", "right"])
+        else:
+            pressure = round(bl["avg_touch_pressure"] * _rng.uniform(0.6, 1.5), 3)
+            radius = round(bl["avg_touch_radius"] * _rng.uniform(0.7, 1.4), 2)
+            hand = "left" if _rng.random() < 0.3 else bl["hand_dominance"]
+
+        directness = round(_rng.uniform(0.6, 0.9), 3)
+        session_dur = int(bl["avg_session_duration_ms"] * _rng.uniform(0.3, 0.6))
+        hour = _rng.choice([2, 3, 4, 5])
+
+        hesitation = _rng.randint(50, 120)  # suspiciously NOT hesitant
+        paste = True
+        paste_field = "recipient_account"
+        segmented = not is_deniz  # Deniz normally has segmented, attacker wouldn't
+
+        # Phone call 40% → Cognitive boost (APP fraud pattern)
+        phone_call = _rng.random() < 0.4
+        phone_dur = _rng.randint(120000, 600000) if phone_call else 0
+
+        auth = "password" if use_diff_device else ("password" if is_deniz else "biometric")
+        familiarity = round(_rng.uniform(0.25, 0.5), 3)
+        dead_time = 0
+
+    payload = _build_payload(
+        user_id=user_id, baseline=bl, loc=loc, device=use_device,
+        recipient_id=recipient_id, amount=amount,
+        typing_speed=typing_speed, error_rate=error_rate, rhythm=rhythm,
+        pressure=pressure, radius=radius, hand=hand,
+        directness=directness, session_dur=session_dur, hesitation=hesitation,
+        confirm_attempts=1,
+        ip=ip, ip_loc=ip_loc, auth=auth, hour=hour,
+        paste=paste, paste_field=paste_field, segmented=segmented,
+        phone_call=phone_call, phone_dur=phone_dur,
+        is_vpn=is_vpn,
+        is_emulator=severity == "high" and _rng.random() < 0.15,
+        is_rooted=severity == "high" and _rng.random() < 0.1,
+        familiarity=familiarity, dead_time=dead_time,
+    )
+
+    label = "HIGH" if severity == "high" else "MEDIUM"
+    return {
+        "description": f"Suspicious {label} — {bl['name']} anomalous behavior",
+        "transaction_direction": "incoming",
+        "transaction": payload,
+    }

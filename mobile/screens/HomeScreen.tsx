@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { TelemetryTracker } from "../lib/telemetry";
-import { triggerDemoScenario } from "../lib/api";
+import { generateScenario } from "../lib/api";
 import SendMoneyModal from "../components/SendMoneyModal";
 
 interface Props {
@@ -20,35 +20,17 @@ interface Props {
   onLogout: () => void;
 }
 
-const SAFE_SCENARIOS = ["safe_mertali", "safe_ediz", "safe_deniz", "normal"];
-const SUSPICIOUS_SCENARIOS = ["suspicious_mertali", "suspicious_ediz", "suspicious_deniz", "app_fraud", "account_takeover", "mule_network"];
-
-const SCENARIO_NAMES: Record<string, string> = {
-  safe_mertali: "Mertali Tercan",
-  safe_ediz: "Ediz Uysal",
-  safe_deniz: "Deniz Coban",
-  normal: "Mertali Tercan",
-  suspicious_mertali: "Mertali Tercan",
-  suspicious_ediz: "Ediz Uysal",
-  suspicious_deniz: "Deniz Coban",
-  app_fraud: "Ediz Uysal",
-  account_takeover: "Deniz Coban",
-  mule_network: "Mertali Tercan",
-};
-
 export default function HomeScreen({ user, tracker, onLogout }: Props) {
   const [balance, setBalance] = useState(
     () => Math.floor(Math.random() * 1000 + 1000) + Math.random() * 0.99
   );
   const [showSendMoney, setShowSendMoney] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [demoExpanded, setDemoExpanded] = useState(false);
   const [demoLoading, setDemoLoading] = useState<string | null>(null);
-  const [safeIndex, setSafeIndex] = useState(0);
-  const [suspiciousIndex, setSuspiciousIndex] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
   const toastOpacity = useRef(new Animated.Value(0)).current;
 
-  // Toast notification
   const showToast = useCallback(
     (message: string) => {
       setToast(message);
@@ -73,40 +55,29 @@ export default function HomeScreen({ user, tracker, onLogout }: Props) {
     tracker?.recordTouch(200, 400, "press");
   };
 
-  const handleDemoScenario = async (type: "safe" | "suspicious") => {
+  const handleGenerate = async (type: "safe" | "suspicious") => {
     handleInteraction();
-
-    // Pick scenario from cycle
-    let scenario: string;
-    if (type === "safe") {
-      scenario = SAFE_SCENARIOS[safeIndex % SAFE_SCENARIOS.length];
-      setSafeIndex((i) => i + 1);
-    } else {
-      scenario = SUSPICIOUS_SCENARIOS[suspiciousIndex % SUSPICIOUS_SCENARIOS.length];
-      setSuspiciousIndex((i) => i + 1);
-    }
-
     setDemoLoading(type);
 
-    // Show immediate toast
-    const scenarioUser = SCENARIO_NAMES[scenario] || "Someone";
     const amount = parseFloat((Math.random() * 400 + 50).toFixed(2));
-    if (type === "safe") {
-      setBalance((b) => b + amount);
-      showToast(`Money received $${amount.toFixed(2)} from ${scenarioUser}`);
-    } else {
-      setBalance((b) => b + amount);
-      showToast(`Incoming $${amount.toFixed(2)} from ${scenarioUser} — analyzing...`);
-    }
+    setBalance((b) => b + amount);
+    showToast(
+      type === "safe"
+        ? `Incoming $${amount.toFixed(2)} for ${user.name}`
+        : `Incoming $${amount.toFixed(2)} for ${user.name} — analyzing...`
+    );
 
     try {
-      const result = await triggerDemoScenario(scenario);
+      const result = await generateScenario(user.userId, type);
+      const assessment = result?.assessment || {};
       const score =
-        result?.cumulative_fraud_score ?? result?.fraud_score ?? "N/A";
-      const risk = result?.risk_level ?? "unknown";
-      Alert.alert("Pipeline Complete", `${scenarioUser}\nFraud Score: ${score}/100\nRisk: ${risk}`, [
-        { text: "OK" },
-      ]);
+        assessment?.meta?.cumulative_fraud_score ?? result?.cumulative_fraud_score ?? "N/A";
+      const risk = assessment?.meta?.risk_level ?? result?.risk_level ?? "unknown";
+      Alert.alert(
+        "Pipeline Complete",
+        `${user.name}\nFraud Score: ${score}/100\nRisk: ${risk}`,
+        [{ text: "OK" }]
+      );
     } catch {
       Alert.alert("Error", "Could not reach backend. Is it running?");
     }
@@ -130,27 +101,45 @@ export default function HomeScreen({ user, tracker, onLogout }: Props) {
         </Animated.View>
       )}
 
-      {/* Demo Buttons Bar */}
+      {/* Collapsible Demo Seed Bar */}
       <View style={styles.demoBar}>
-        <Text style={styles.demoLabel}>Generate :</Text>
         <TouchableOpacity
-          style={styles.demoButton}
-          onPress={() => handleDemoScenario("safe")}
-          disabled={!!demoLoading}
+          onPress={() => setDemoExpanded(!demoExpanded)}
+          style={styles.demoChevron}
         >
-          <Text style={styles.demoButtonText}>
-            {demoLoading === "safe" ? "..." : "Safe Intake"}
-          </Text>
+          <Ionicons
+            name={demoExpanded ? "chevron-down" : "chevron-forward"}
+            size={14}
+            color="#555"
+          />
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.demoButton, styles.demoButtonDanger]}
-          onPress={() => handleDemoScenario("suspicious")}
-          disabled={!!demoLoading}
-        >
-          <Text style={styles.demoButtonText}>
-            {demoLoading === "suspicious" ? "..." : "Suspicious Intake"}
-          </Text>
-        </TouchableOpacity>
+        {demoExpanded && (
+          <View style={styles.demoContent}>
+            <Text style={styles.demoHint}>Data seeding for demo purposes</Text>
+            <View style={styles.demoRow}>
+              <Text style={styles.demoLabel}>Generate (Incoming):</Text>
+              <TouchableOpacity
+                style={styles.demoButton}
+                onPress={() => handleGenerate("safe")}
+                disabled={!!demoLoading}
+              >
+                <Text style={styles.demoButtonText}>
+                  {demoLoading === "safe" ? "..." : "Safe"}
+                </Text>
+              </TouchableOpacity>
+              <Text style={styles.demoDash}>-</Text>
+              <TouchableOpacity
+                style={[styles.demoButton, styles.demoButtonDanger]}
+                onPress={() => handleGenerate("suspicious")}
+                disabled={!!demoLoading}
+              >
+                <Text style={styles.demoButtonText}>
+                  {demoLoading === "suspicious" ? "..." : "Suspicious"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
 
       <View style={styles.content}>
@@ -265,6 +254,9 @@ export default function HomeScreen({ user, tracker, onLogout }: Props) {
           setBalance((b) => b - amount);
           showToast(`Money sent $${amount.toFixed(2)} to ${name}`);
         }}
+        onAnalysisComplete={(score, risk, amount, name) => {
+          showToast(`${name}: Score ${score}/100 (${risk})`);
+        }}
       />
     </SafeAreaView>
   );
@@ -303,23 +295,41 @@ const styles = StyleSheet.create({
   },
   demoBar: {
     flexDirection: "row",
+    alignItems: "flex-start",
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+  },
+  demoChevron: {
+    paddingTop: 2,
+    paddingRight: 6,
+  },
+  demoContent: {
+    flex: 1,
+  },
+  demoHint: {
+    color: "#555",
+    fontSize: 10,
+    marginBottom: 3,
+  },
+  demoRow: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 8,
-    paddingBottom: 8,
-    paddingHorizontal: 24,
-    gap: 8,
+    gap: 6,
   },
   demoLabel: {
     color: "#8E8E93",
     fontSize: 11,
     fontWeight: "500",
   },
+  demoDash: {
+    color: "#555",
+    fontSize: 11,
+  },
   demoButton: {
     backgroundColor: "#1B3A28",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 5,
     borderWidth: 1,
     borderColor: "#34A853",
   },
