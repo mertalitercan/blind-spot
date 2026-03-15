@@ -58,6 +58,7 @@ Agents 1-5 execute **in parallel** using `asyncio.gather`. The meta-reasoning ag
 | **Dashboard** | Next.js 15, React 19, TypeScript, Tailwind CSS |
 | **Mobile Demo** | React Native with Expo |
 | **Real-time** | WebSocket for live case updates |
+| **Database Layer** | Supabase (PostgreSQL) |
 
 ---
 
