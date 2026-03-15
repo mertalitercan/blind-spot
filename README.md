@@ -82,7 +82,22 @@ cd blind-spot
 Create a `.env` file in the project root:
 
 ```env
-ANTHROPIC_API_KEY=your-api-key-here
+# API Keys
+ANTHROPIC_API_KEY=''
+MODEL_NAME=claude-sonnet-4-20250514
+
+# Supabase
+SUPABASE_URL=''
+SUPABASE_KEY=''
+
+# Dashboard Login
+DASHBOARD_USER=admin
+DASHBOARD_PASS=admin
+
+# Demo User Accounts (username:password)
+# mertali-tercan    / mertali-tercan-1
+# deniz-coban       / deniz-coban-1
+# ediz-uysal        / ediz-uysal-1
 ```
 
 ### 2. Terminal 1 - Backend (FastAPI)
