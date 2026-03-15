@@ -129,7 +129,7 @@ export default function UserDetailPage() {
   return (
     <div className="min-h-screen">
       {/* Top Bar */}
-      <header className="border-b border-[#1E1E35] px-8 py-4 flex items-center gap-5">
+      <header className="border-b border-[#1E1E35] px-8 py-4 flex items-center gap-5 max-w-6xl mx-auto">
         <button
           onClick={() => router.push("/dashboard")}
           className="p-2 rounded-xl hover:bg-[#0F0F1A] transition"
@@ -151,78 +151,11 @@ export default function UserDetailPage() {
         </div>
       </header>
 
-      <div className="p-8 space-y-8">
-        {/* Intervention Preview — full width at top, only for high risk */}
-        {finalScore >= 71 && (() => {
-          const fraudTypes = meta.fraud_type_assessment || {};
-          const topFraud = Object.entries(fraudTypes).sort((a, b) => (b[1] as number) - (a[1] as number))[0];
-          const fraudKey = topFraud ? topFraud[0] : "authorized_push_payment";
-          const interventions: Record<string, { title: string; message: string; icon: string }> = {
-            authorized_push_payment: {
-              title: "Transaction Paused",
-              icon: "🛡️",
-              message: "We've paused this transfer to protect you. Scammers sometimes pressure people into sending money urgently. Take a moment — is this someone you know and trust?",
-            },
-            account_takeover: {
-              title: "Account Secured",
-              icon: "🔒",
-              message: "We've detected unusual login activity and temporarily locked your account. If this wasn't you, your money is safe. Please verify your identity to continue.",
-            },
-            money_mule: {
-              title: "Transfer Under Review",
-              icon: "⏸️",
-              message: "This transfer is being reviewed. If someone asked you to receive and forward money, this may be a scam that could make you liable. Contact us before proceeding.",
-            },
-          };
-          const intervention = interventions[fraudKey] || interventions.authorized_push_payment;
-
-          return (
-            <div className="bg-[#0F0F1A] border border-[#1E1E35] rounded-2xl p-5">
-              <p className="text-sm font-medium mb-4 text-slate-400">Intervention Preview</p>
-              <div className="flex justify-center">
-                <div className="w-[260px] bg-[#1A1A2E] rounded-[28px] border border-[#2A2A45] p-3 shadow-xl">
-                  {/* Phone notch */}
-                  <div className="flex justify-center mb-3">
-                    <div className="w-20 h-1 bg-[#2A2A45] rounded-full" />
-                  </div>
-                  {/* Notification card */}
-                  <div className="bg-[#0F0F1A] rounded-2xl border border-red-500/30 p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="text-lg">{intervention.icon}</span>
-                      <div>
-                        <p className="text-xs font-semibold text-red-300">{intervention.title}</p>
-                        <p className="text-[9px] text-slate-600">TD Bank Security</p>
-                      </div>
-                    </div>
-                    <p className="text-[11px] text-slate-300 leading-relaxed mb-4">
-                      {intervention.message}
-                    </p>
-                    <div className="space-y-2">
-                      <button className="w-full bg-red-500/20 border border-red-500/30 text-red-300 text-[11px] font-medium py-2 rounded-xl">
-                        Cancel Transfer
-                      </button>
-                      <button className="w-full bg-[#1E1E35] text-slate-400 text-[11px] font-medium py-2 rounded-xl">
-                        I know this person — proceed
-                      </button>
-                    </div>
-                  </div>
-                  {/* Phone home bar */}
-                  <div className="flex justify-center mt-3">
-                    <div className="w-24 h-1 bg-[#2A2A45] rounded-full" />
-                  </div>
-                </div>
-              </div>
-              <p className="text-[10px] text-slate-600 text-center mt-4">
-                This is what the user would see on their device when the transaction is paused.
-              </p>
-            </div>
-          );
-        })()}
-
+      <div className="p-8 space-y-8 max-w-6xl mx-auto">
         {/* Main content: Info (left) + Chat (right) */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-          {/* Left: Scores + Analysis (3 cols) */}
-          <div className="lg:col-span-3 space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+          {/* Left: Scores + Analysis */}
+          <div className="lg:col-span-2 space-y-6">
             {/* Score Hero */}
             <div className="bg-[#0F0F1A] border border-[#1E1E35] rounded-2xl p-8 flex items-center gap-8">
               <div className="relative shrink-0">
@@ -316,35 +249,168 @@ export default function UserDetailPage() {
               })}
             </div>
 
-            {/* Fraud Type */}
-            {meta.fraud_type_assessment && (
-              <div className="bg-[#0F0F1A] border border-[#1E1E35] rounded-2xl p-5">
-                <p className="text-sm font-medium mb-4 text-slate-400">Fraud Type Probability</p>
-                <div className="space-y-3">
-                  {Object.entries(meta.fraud_type_assessment).map(([type, prob]) => (
-                    <div key={type} className="flex items-center gap-4">
-                      <span className="text-xs text-slate-500 w-44 capitalize">
-                        {type.replace(/_/g, " ")}
-                      </span>
-                      <div className="flex-1 h-1.5 bg-[#1E1E35] rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full bg-white"
-                          style={{ width: `${(prob as number) * 100}%` }}
-                        />
+            {/* Cognitive State Card */}
+            {(() => {
+              const cog = assessment.cognitive;
+              if (!cog) return null;
+              const state: string = cog.detected_state || "normal";
+              const confidence: number = cog.confidence || 0;
+              const coercion: string[] = cog.coercion_indicators || [];
+              const stress: string[] = cog.stress_indicators || [];
+              const coached: string[] = cog.coached_indicators || [];
+              const allStress = [...stress, ...coached];
+
+              if (state === "normal" && coercion.length === 0 && allStress.length === 0) return null;
+
+              const isHigh = state === "coercion_likely" || state === "coaching_suspected" || state === "significant_stress";
+              const isMid = state === "mild_stress";
+              const stateColor = isHigh ? "text-red-400" : isMid ? "text-amber-400" : "text-[#2E7D32]";
+              const dotColor = isHigh ? "bg-red-400" : isMid ? "bg-amber-400" : "bg-[#2E7D32]";
+              const stateLabel = state.replace(/_/g, " ").split(" ").map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+
+              const hasTwo = coercion.length > 0 && allStress.length > 0;
+
+              return (
+                <div className="bg-[#0F0F1A] border border-[#1E1E35] rounded-2xl p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className={`w-2 h-2 rounded-full ${dotColor}`} />
+                    <p className="text-sm font-semibold">Cognitive state</p>
+                  </div>
+
+                  <div className="text-center mb-5">
+                    <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Detected State</p>
+                    <p className={`text-lg font-bold ${stateColor}`}>{stateLabel}</p>
+                    <p className="text-xs text-slate-600 mt-0.5">Confidence: {(confidence * 100).toFixed(0)}%</p>
+                  </div>
+
+                  <div className={`grid gap-3 ${hasTwo ? "grid-cols-2" : "grid-cols-1"}`}>
+                    {coercion.length > 0 && (
+                      <div className="bg-[#0A0A15] border border-[#1E1E35] rounded-xl p-3.5">
+                        <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-2.5">Coercion Signals</p>
+                        <div className="space-y-2">
+                          {coercion.map((signal: string, i: number) => (
+                            <div key={i} className="flex items-baseline gap-2">
+                              <div className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0 relative top-[-1px]" />
+                              <span className="text-sm text-slate-300 leading-relaxed">{signal}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <span className="text-xs font-mono text-slate-400 w-10 text-right">
-                        {((prob as number) * 100).toFixed(0)}%
-                      </span>
-                    </div>
-                  ))}
+                    )}
+                    {allStress.length > 0 && (
+                      <div className="bg-[#0A0A15] border border-[#1E1E35] rounded-xl p-3.5">
+                        <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-2.5">Stress Signals</p>
+                        <div className="space-y-2">
+                          {allStress.map((signal: string, i: number) => (
+                            <div key={i} className="flex items-baseline gap-2">
+                              <div className={`w-1.5 h-1.5 rounded-full shrink-0 relative top-[-1px] ${i < 2 ? "bg-amber-400" : "bg-blue-400"}`} />
+                              <span className="text-sm text-slate-300 leading-relaxed">{signal}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
+
+            {/* Fraud Type */}
+            {meta.fraud_type_assessment && (() => {
+              const entries = Object.entries(meta.fraud_type_assessment) as [string, number][];
+              const sorted = [...entries].sort((a, b) => b[1] - a[1]);
+
+              function fraudBarColor(type: string, prob: number): string {
+                if (type === "legitimate") {
+                  return prob >= 0.5 ? "#2E7D32" : "#4ade80";
+                }
+                if (prob >= 0.6) return "#f87171";
+                if (prob >= 0.3) return "#fbbf24";
+                if (prob >= 0.1) return "#3b82f6";
+                return "#2E7D32";
+              }
+
+              function fraudTextColor(type: string, prob: number): string {
+                if (type === "legitimate") return "text-[#2E7D32]";
+                if (prob >= 0.6) return "text-red-400";
+                if (prob >= 0.3) return "text-amber-400";
+                if (prob >= 0.1) return "text-blue-400";
+                return "text-[#2E7D32]";
+              }
+
+              return (
+                <div className="bg-[#0F0F1A] border border-[#1E1E35] rounded-2xl p-5">
+                  <div className="flex items-center gap-2 mb-5">
+                    <div className="w-2 h-2 rounded-full bg-blue-400" />
+                    <p className="text-sm font-semibold">Fraud type</p>
+                  </div>
+                  <div className="space-y-5">
+                    {sorted.map(([type, prob]) => {
+                      const pct = Math.round(prob * 100);
+                      const color = fraudBarColor(type, prob);
+                      const textClr = fraudTextColor(type, prob);
+                      return (
+                        <div key={type}>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-sm font-medium capitalize">
+                              {type.replace(/_/g, " ")}
+                            </span>
+                            <span className={`text-sm font-bold font-mono ${textClr}`}>
+                              {pct}%
+                            </span>
+                          </div>
+                          <div className="w-full h-2 bg-[#1E1E35] rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all duration-700"
+                              style={{ width: `${pct}%`, backgroundColor: color }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Recommended Actions */}
+                  {meta.recommended_actions && meta.recommended_actions.length > 0 && (
+                    <>
+                      <div className="border-t border-[#1E1E35] my-5" />
+                      <p className="text-xs text-slate-500 uppercase tracking-wider mb-3">
+                        Recommended Actions
+                      </p>
+                      <div className="space-y-2">
+                        {meta.recommended_actions.map((action: string, i: number) => {
+                          const actionColors = [
+                            "text-red-400",
+                            "text-blue-400",
+                            "text-amber-400",
+                            "text-slate-400",
+                          ];
+                          const dotColors = [
+                            "bg-red-400",
+                            "bg-blue-400",
+                            "bg-amber-400",
+                            "bg-slate-500",
+                          ];
+                          return (
+                            <div key={i} className="flex items-center gap-2.5">
+                              <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColors[i] || dotColors[3]}`} />
+                              <span className={`text-sm font-mono ${actionColors[i] || actionColors[3]}`}>
+                                {action}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
-          {/* Right: AI Chat (2 cols) */}
-          <div className="lg:col-span-2">
-          <div className="bg-[#0F0F1A] border border-[#1E1E35] rounded-2xl flex flex-col h-[600px] lg:h-[calc(100vh-130px)] sticky top-8">
+          {/* Right: AI Chat */}
+          <div className="lg:col-span-1 self-start sticky top-8">
+          <div className="bg-[#0F0F1A] border border-[#1E1E35] rounded-2xl flex flex-col h-[480px]">
             <div className="p-5 border-b border-[#1E1E35]">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-[#2E7D32] animate-pulse" />
@@ -426,15 +492,15 @@ export default function UserDetailPage() {
                 <button
                   onClick={sendChat}
                   disabled={chatLoading || !chatInput.trim()}
-                  className="bg-[#2E7D32] hover:bg-[#2E7D32] disabled:opacity-30 rounded-xl px-5 py-2.5 text-sm font-medium transition"
+                  className="bg-[#2E7D32] hover:bg-[#256d29] disabled:opacity-30 rounded-xl px-5 py-2.5 text-sm font-medium transition"
                 >
                   Ask
                 </button>
               </div>
             </div>
           </div>
+          </div>
         </div>
-      </div>
       </div>
     </div>
   );

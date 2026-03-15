@@ -1,6 +1,7 @@
 """Demo scenario endpoints — trigger pre-built fraud scenarios for testing."""
 
 import json
+import time
 import uuid
 import anthropic
 from fastapi import APIRouter, HTTPException
@@ -48,11 +49,14 @@ async def run_demo_scenario(scenario_name: str):
             "data": {"id": pending_id, "agent": agent_name, "score": score, "confidence": confidence},
         })
 
+    t0 = time.time()
     result = await analyze_transaction(transaction_data, progress_callback=on_agent_complete)
     result_dict = result.model_dump()
+    store.record_response_time(time.time() - t0)
 
+    amount = transaction_data.get("amount", 0)
     store.remove_pending(pending_id)
-    entry = store.save_assessment(user_id, user_name, result_dict, transaction_direction=direction)
+    entry = store.save_assessment(user_id, user_name, result_dict, transaction_direction=direction, amount=amount)
     await store.broadcast({
         "type": "analysis_complete",
         "data": {"pending_id": pending_id, "entry": entry},
@@ -97,11 +101,14 @@ async def generate_user_scenario(user_id: str, scenario_type: str):
             "data": {"id": pending_id, "agent": agent_name, "score": score, "confidence": confidence},
         })
 
+    t0 = time.time()
     result = await analyze_transaction(transaction_data, progress_callback=on_agent_complete)
     result_dict = result.model_dump()
+    store.record_response_time(time.time() - t0)
 
+    amount = transaction_data.get("amount", 0)
     store.remove_pending(pending_id)
-    entry = store.save_assessment(user_id, user_name, result_dict, transaction_direction=direction)
+    entry = store.save_assessment(user_id, user_name, result_dict, transaction_direction=direction, amount=amount)
     await store.broadcast({
         "type": "analysis_complete",
         "data": {"pending_id": pending_id, "entry": entry},
@@ -143,8 +150,8 @@ async def generate_custom_scenario(user_id: str, body: CustomPromptRequest):
         f"AVAILABLE RECIPIENTS: {json.dumps(list(RECIPIENT_PROFILES_BUSINESS.keys()))}\n\n"
         "RULES:\n"
         "- recipient_id MUST be picked from the AVAILABLE RECIPIENTS list above. Do NOT invent new ones.\n"
-        "- For suspicious scenarios, use recipients like NEW-MULE-ACCOUNT-789, NEW-RECIPIENT-ATO-456, "
-        "EXTERNAL-MULE-OUT-111, or SUSPECT-BERLIN-222.\n"
+        "- For suspicious scenarios, use recipients like CA-9284710-JS, CA-7731205-QC, "
+        "KY-8850134-OH, or DE-4419823-ET.\n"
         "- For safe scenarios, use recipients like landlord-utilities, grocery-store, pharmacy, or friend-alex-890.\n"
         "- description must be SHORT (max 10 words), e.g. 'Coerced transfer while on phone call'\n"
         "- Keep amounts realistic relative to the user's monthly income range.\n\n"
@@ -267,11 +274,14 @@ async def generate_custom_scenario(user_id: str, body: CustomPromptRequest):
             "data": {"id": pending_id, "agent": agent_name, "score": score, "confidence": confidence},
         })
 
+    t0 = time.time()
     result = await analyze_transaction(transaction_data, progress_callback=on_agent_complete)
     result_dict = result.model_dump()
+    store.record_response_time(time.time() - t0)
 
+    amount = transaction_data.get("amount", 0)
     store.remove_pending(pending_id)
-    entry = store.save_assessment(user_id, user_name, result_dict, transaction_direction=direction)
+    entry = store.save_assessment(user_id, user_name, result_dict, transaction_direction=direction, amount=amount)
     await store.broadcast({
         "type": "analysis_complete",
         "data": {"pending_id": pending_id, "entry": entry},

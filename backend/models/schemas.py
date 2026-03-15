@@ -64,7 +64,7 @@ class DeviceAgentOutput(AgentOutput):
 
 
 class GraphAgentOutput(AgentOutput):
-    pass
+    recipient_graph_data: dict = {}
 
 
 class FraudTypeAssessment(BaseModel):

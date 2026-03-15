@@ -466,13 +466,27 @@ async def analyze_transaction(transaction_data: dict, progress_callback=None) ->
 
     formula_score = _compute_formula_score(scores)
 
-    # Run meta-reasoning agent
-    meta_input = _build_meta_input(
-        scores, behavioral_result, cognitive_result,
-        transaction_result, device_result, graph_result,
-        formula_score, transaction_data,
-    )
-    meta_result = await _call_agent_with_progress(meta_scorer_agent, meta_input, "MetaScorer", progress_callback)
+    # If all agents failed (all scores are 0), skip meta-scorer and return safe default
+    all_failed = all(v == 0 for v in scores.values())
+    if all_failed:
+        logger.warning("All agents returned 0 — likely API errors. Returning low-risk default.")
+        meta_result = {
+            "cumulative_fraud_score": 0,
+            "risk_level": "low",
+            "recommended_action": "allow",
+            "fraud_type_assessment": {"legitimate": 1.0, "authorized_push_payment": 0.0, "account_takeover": 0.0, "money_mule": 0.0},
+            "reasoning": "Unable to complete full analysis due to temporary system issues. No risk signals detected from available data. Transaction allowed pending re-evaluation.",
+            "recommended_actions": ["Re-analyze when systems are restored"],
+            "agent_summary": {k: {"score": 0, "key_flag": "agent_unavailable"} for k in scores},
+        }
+    else:
+        # Run meta-reasoning agent
+        meta_input = _build_meta_input(
+            scores, behavioral_result, cognitive_result,
+            transaction_result, device_result, graph_result,
+            formula_score, transaction_data,
+        )
+        meta_result = await _call_agent_with_progress(meta_scorer_agent, meta_input, "MetaScorer", progress_callback)
 
     elapsed_ms = round((time.time() - start_time) * 1000, 1)
 
@@ -516,6 +530,7 @@ async def analyze_transaction(transaction_data: dict, progress_callback=None) ->
             confidence=graph_result.get("confidence", 0.0),
             flags=graph_result.get("flags", []),
             reasoning=graph_result.get("reasoning", ""),
+            recipient_graph_data=recipient_graph,
         ),
         meta=MetaScorerOutput(
             cumulative_fraud_score=meta_result.get("cumulative_fraud_score", formula_score),

@@ -2,7 +2,7 @@
 
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 
 assessments: list[dict] = []
 alerts: list[dict] = []
@@ -10,6 +10,7 @@ pending_assessments: dict[str, dict] = {}
 dismissed_ids: set[str] = set()
 paused_overrides: dict[str, bool] = {}  # user_id -> manual pause state
 websocket_connections: set = set()
+response_times: list[float] = []  # seconds per analysis
 
 
 def risk_level_from_score(score: int) -> str:
@@ -20,7 +21,7 @@ def risk_level_from_score(score: int) -> str:
     return "green"
 
 
-def save_assessment(user_id: str, user_name: str, result: dict, transaction_direction: str = "outgoing") -> dict:
+def save_assessment(user_id: str, user_name: str, result: dict, transaction_direction: str = "outgoing", amount: float = 0.0) -> dict:
     meta = result.get("meta", {})
     score = meta.get("cumulative_fraud_score", 0)
     risk = risk_level_from_score(score)
@@ -33,6 +34,7 @@ def save_assessment(user_id: str, user_name: str, result: dict, transaction_dire
         "cumulative_fraud_score": score,
         "risk_level": risk,
         "transaction_direction": transaction_direction,
+        "amount": amount,
         "assessment": result,
     }
     assessments.append(entry)
@@ -52,6 +54,10 @@ def save_assessment(user_id: str, user_name: str, result: dict, transaction_dire
             "read": False,
         }
         alerts.append(alert)
+
+    # Auto-pause account for high risk
+    if score >= 71:
+        paused_overrides[user_id] = True
 
     return entry
 
@@ -168,6 +174,40 @@ def mark_alert_read(alert_id: str) -> bool:
             a["read"] = True
             return True
     return False
+
+
+def record_response_time(seconds: float):
+    """Record how long an analysis took."""
+    response_times.append(seconds)
+
+
+def get_stats() -> dict:
+    """Compute dashboard stats: critical alerts, flagged today, blocked value, avg response."""
+    today_str = date.today().isoformat()
+
+    critical_count = len([a for a in alerts if a["risk_level"] == "red"])
+    flagged_today = len([
+        a for a in assessments
+        if a["id"] not in dismissed_ids
+        and a["risk_level"] in ("red", "yellow")
+        and a["timestamp"][:10] == today_str
+    ])
+    blocked_value = sum(
+        a.get("amount", 0)
+        for a in assessments
+        if a["id"] not in dismissed_ids and is_user_paused(a["user_id"])
+    )
+    accounts_paused = len(set(
+        a["user_id"] for a in assessments
+        if a["id"] not in dismissed_ids and is_user_paused(a["user_id"])
+    ))
+
+    return {
+        "critical_alerts": critical_count,
+        "flagged_today": flagged_today,
+        "blocked_value": round(blocked_value, 2),
+        "accounts_paused": accounts_paused,
+    }
 
 
 async def broadcast(message: dict):

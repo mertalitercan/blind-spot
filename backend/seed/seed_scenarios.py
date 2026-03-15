@@ -46,7 +46,7 @@ RECIPIENT_PROFILES_BUSINESS = {
         "years_in_business": 45,
         "website": "torontoutilities.ca",
     },
-    "NEW-MULE-ACCOUNT-789": {
+    "CA-9284710-JS": {
         "business_name": "John Smith",
         "business_type": "personal",
         "industry": "unknown",
@@ -56,7 +56,7 @@ RECIPIENT_PROFILES_BUSINESS = {
         "years_in_business": 0,
         "website": None,
     },
-    "NEW-RECIPIENT-ATO-456": {
+    "CA-7731205-QC": {
         "business_name": "Quick Cash Ltd",
         "business_type": "money_service_business",
         "industry": "financial_services",
@@ -66,7 +66,7 @@ RECIPIENT_PROFILES_BUSINESS = {
         "years_in_business": 0,
         "website": None,
     },
-    "EXTERNAL-MULE-OUT-111": {
+    "KY-8850134-OH": {
         "business_name": "Offshore Holdings Ltd",
         "business_type": "holding_company",
         "industry": "financial_services",
@@ -116,7 +116,7 @@ RECIPIENT_PROFILES_BUSINESS = {
         "years_in_business": 3,
         "website": None,
     },
-    "SUSPECT-BERLIN-222": {
+    "DE-4419823-ET": {
         "business_name": "EuroTransfer GmbH",
         "business_type": "money_service_business",
         "industry": "financial_services",
@@ -265,8 +265,8 @@ RECIPIENT_GRAPH_DATA = {
         "recipient_account_age_days": 4000,
         "flagged": False,
     },
-    "NEW-MULE-ACCOUNT-789": {
-        "account_id": "NEW-MULE-ACCOUNT-789",
+    "CA-9284710-JS": {
+        "account_id": "CA-9284710-JS",
         "account_name": "John Smith",
         "incoming_transfers_24h": 4,
         "unique_senders_24h": 4,
@@ -295,8 +295,8 @@ RECIPIENT_GRAPH_DATA = {
         "recipient_account_age_days": 280,
         "flagged": False,
     },
-    "NEW-RECIPIENT-ATO-456": {
-        "account_id": "NEW-RECIPIENT-ATO-456",
+    "CA-7731205-QC": {
+        "account_id": "CA-7731205-QC",
         "account_name": "Quick Cash Ltd",
         "incoming_transfers_24h": 1,
         "unique_senders_24h": 1,
@@ -305,8 +305,8 @@ RECIPIENT_GRAPH_DATA = {
         "recipient_account_age_days": 30,
         "flagged": False,
     },
-    "EXTERNAL-MULE-OUT-111": {
-        "account_id": "EXTERNAL-MULE-OUT-111",
+    "KY-8850134-OH": {
+        "account_id": "KY-8850134-OH",
         "account_name": "Offshore Holdings",
         "incoming_transfers_24h": 2,
         "unique_senders_24h": 2,
@@ -315,8 +315,8 @@ RECIPIENT_GRAPH_DATA = {
         "recipient_account_age_days": 7,
         "flagged": False,
     },
-    "SUSPECT-BERLIN-222": {
-        "account_id": "SUSPECT-BERLIN-222",
+    "DE-4419823-ET": {
+        "account_id": "DE-4419823-ET",
         "account_name": "EuroTransfer GmbH",
         "incoming_transfers_24h": 3,
         "unique_senders_24h": 3,
@@ -419,7 +419,7 @@ DEMO_SCENARIOS = {
             "user_id": "ediz-uysal",
             "amount": 2500.00,
             "currency": "CAD",
-            "recipient_account_id": "NEW-MULE-ACCOUNT-789",
+            "recipient_account_id": "CA-9284710-JS",
             "recipient_name": "John Smith",
             "recipient_institution": "Unknown Bank",
             "transaction_type": "e_transfer",
@@ -501,7 +501,7 @@ DEMO_SCENARIOS = {
             "user_id": "deniz-coban",
             "amount": 1200.00,
             "currency": "CAD",
-            "recipient_account_id": "NEW-RECIPIENT-ATO-456",
+            "recipient_account_id": "CA-7731205-QC",
             "recipient_name": "Quick Cash Ltd",
             "recipient_institution": "External Bank",
             "transaction_type": "e_transfer",
@@ -855,7 +855,7 @@ DEMO_SCENARIOS = {
             "user_id": "deniz-coban",
             "amount": 760.00,
             "currency": "CAD",
-            "recipient_account_id": "SUSPECT-BERLIN-222",
+            "recipient_account_id": "DE-4419823-ET",
             "recipient_name": "EuroTransfer GmbH",
             "recipient_institution": "External Bank",
             "transaction_type": "e_transfer",
@@ -911,7 +911,7 @@ DEMO_SCENARIOS = {
             "user_id": "mertali-tercan",
             "amount": 1400.00,
             "currency": "CAD",
-            "recipient_account_id": "EXTERNAL-MULE-OUT-111",
+            "recipient_account_id": "KY-8850134-OH",
             "recipient_name": "Offshore Holdings",
             "recipient_institution": "Foreign Bank",
             "transaction_type": "wire",
@@ -1342,7 +1342,7 @@ def _gen_suspicious(user_id: str, bl: dict, loc: dict, device: dict, severity: s
     else:
         # ── HIGH: most signals off, but NOT uniform 80-100 across all agents ──
         # Key: different agents should produce VARIED scores
-        recipient_id = _rng.choice(["NEW-MULE-ACCOUNT-789", "NEW-RECIPIENT-ATO-456", "SUSPECT-BERLIN-222"])
+        recipient_id = _rng.choice(["CA-9284710-JS", "CA-7731205-QC", "DE-4419823-ET"])
         amount = round(_rng.uniform(max_amt * 1.5, max_amt * 3.0), 2)
 
         # Typing very different from baseline
