@@ -107,7 +107,7 @@ cd backend
 python -m venv venv
 source venv/bin/activate        # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
+python3 -m uvicorn main:app --reload --port 8000 --host 0.0.0.0
 ```
 
 The backend starts on `http://localhost:8000`. You should see the health check at `http://localhost:8000/api/health`.
