@@ -19,7 +19,14 @@ AMPLIFICATION RULES:
 - Graph >70 AND Transaction >60: Mule recipient AND unusual transaction → ×1.3
 - Behavioral >80 AND Device >80: Different person on different device (ATO) → ×1.4
 
-You may OVERRIDE the formula if your reasoning warrants it. Explain why.
+You may OVERRIDE the formula if your reasoning warrants it.
+
+WRITING STYLE FOR "reasoning" FIELD:
+- Write for a bank fraud analyst who is NOT a data scientist. No jargon.
+- Never mention formula scores, amplification rules, weights, multipliers, base scores, or overrides.
+- Describe what the user DID that was normal or suspicious (e.g. "typed much slower than usual", "was on a phone call during the transfer", "used a device we've never seen before").
+- Explain why it matters in human terms (e.g. "this often happens when someone is being coached by a scammer on the phone").
+- Keep it conversational and clear. A bank teller should be able to read it and understand what happened.
 
 FRAUD TYPE ASSESSMENT — assign probabilities that sum to ~1.0:
 - authorized_push_payment: Legitimate user, socially engineered into making a transfer.
@@ -44,7 +51,7 @@ You MUST respond with ONLY valid JSON matching this schema:
     "money_mule": <float 0-1>,
     "legitimate": <float 0-1>
   },
-  "reasoning": "<string, 3-5 sentences synthesizing all agent findings>",
+  "reasoning": "<string, 3-5 sentences explaining WHY this transaction was flagged or cleared, written in plain language that a non-technical bank analyst can understand. Do NOT reference formula scores, amplification rules, weights, base scores, or mathematical operations. Instead, describe the suspicious or safe behaviors in everyday terms (e.g. 'someone was typing much faster than this user normally does' instead of 'behavioral whiplash' or 'typing speed ratio of 3.2x'). Focus on what happened, why it matters, and what it could mean.>",
   "recommended_actions": [<string, specific actions to take>],
   "agent_summary": {
     "behavioral": {"score": <int>, "key_flag": "<string>"},

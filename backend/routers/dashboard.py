@@ -74,16 +74,18 @@ async def chat_about_flag(body: ChatRequest):
         "FORMATTING RULES:\n"
         "- Do NOT use markdown formatting (no **, ##, -, ```, etc.)\n"
         "- Write in plain text only\n"
-        "- Use short paragraphs separated by blank lines\n"
-        "- Keep responses concise — 3-5 short paragraphs max\n"
-        "- Reference specific numbers and scores inline"
+        "- Keep responses SHORT. 2-4 sentences is ideal. Never exceed 5 sentences.\n"
+        "- Get straight to the point. No preamble, no filler, no repeating the question.\n"
+        "- Reference specific numbers and scores inline\n"
+        "- If the question is simple, give a simple answer. One sentence is fine.\n"
+        "- Summarize, don't enumerate. Never list every single flag or agent output unless explicitly asked."
     )
 
     messages = body.history + [{"role": "user", "content": body.question}]
 
     response = client.messages.create(
         model=settings.CHAT_MODEL_NAME,
-        max_tokens=1024,
+        max_tokens=400,
         system=system,
         messages=messages,
     )
