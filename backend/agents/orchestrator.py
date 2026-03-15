@@ -367,7 +367,7 @@ def _build_meta_input(
 
 
 async def _call_agent_safe(agent, input_msg: str, agent_name: str, retries: int = 2) -> dict:
-    """Call an agent with error handling and rate limit retry."""
+    """Call an agent with error handling, retry on rate limit OR bad parse."""
     for attempt in range(retries + 1):
         try:
             result = await rt.call(agent, input_msg)
@@ -375,16 +375,21 @@ async def _call_agent_safe(agent, input_msg: str, agent_name: str, retries: int 
             parsed = parse_agent_json(text)
             if parsed and any(k in parsed for k in ("risk_score", "cognitive_risk_score", "cumulative_fraud_score")):
                 return parsed
-            logger.warning(f"{agent_name} returned unparseable response: {text[:300]}")
+            # Bad parse — retry if we have attempts left
+            if attempt < retries:
+                logger.warning(f"{agent_name} bad parse (attempt {attempt+1}), retrying in {2 * (attempt + 1)}s... Response: {text[:200]}")
+                await asyncio.sleep(2 * (attempt + 1))
+                continue
+            logger.warning(f"{agent_name} returned unparseable response after {retries+1} attempts: {text[:300]}")
             return {"risk_score": 0, "confidence": 0.0, "flags": [], "reasoning": f"{agent_name} failed to produce valid output."}
         except Exception as e:
             error_str = str(e)
-            if "rate_limit" in error_str.lower() and attempt < retries:
+            if ("rate_limit" in error_str.lower() or "overloaded" in error_str.lower()) and attempt < retries:
                 logger.warning(f"{agent_name} hit rate limit, retrying in {3 * (attempt + 1)}s...")
                 await asyncio.sleep(3 * (attempt + 1))
                 continue
             logger.error(f"{agent_name} failed: {e}")
-            return {"risk_score": 0, "confidence": 0.0, "flags": [], "reasoning": f"{agent_name} encountered an error: {str(e)}"}
+            return {"risk_score": 0, "confidence": 0.0, "flags": [], "reasoning": f"{agent_name} encountered an error."}
 
 
 async def analyze_transaction(transaction_data: dict) -> FraudAssessmentResponse:

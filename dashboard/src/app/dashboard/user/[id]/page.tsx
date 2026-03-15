@@ -271,7 +271,7 @@ export default function UserDetailPage() {
                     </span>
                     <div className="flex-1 h-1.5 bg-[#1E1E35] rounded-full overflow-hidden">
                       <div
-                        className={`h-full rounded-full ${barColor((prob as number) * 100)}`}
+                        className="h-full rounded-full bg-white"
                         style={{ width: `${(prob as number) * 100}%` }}
                       />
                     </div>
