@@ -227,4 +227,6 @@ Railtracks gives us async-native parallel execution, structured tool calling, an
 
 ## Team
 
-Built at TD AI Hackathon 2025.
+Mertali Tercan
+Deniz Coban
+Ediz Cagan Uysal
