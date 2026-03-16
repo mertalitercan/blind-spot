@@ -1,4 +1,4 @@
-# BlindSpot
+# BlindSpot (GenAI Genesis 2026 Hackaton)
 
 **AI-powered fraud detection that sees what traditional systems miss.**
 
