@@ -227,6 +227,6 @@ Railtracks gives us async-native parallel execution, structured tool calling, an
 
 ## Team
 
-Mertali Tercan,
+Mertali Tercan (lead),
 Deniz Coban,
 Ediz Cagan Uysal
